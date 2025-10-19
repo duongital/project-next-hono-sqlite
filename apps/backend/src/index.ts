@@ -6,12 +6,29 @@ import healthRoutes from './routes/health';
 import fruitsRoutes from './routes/fruits';
 import webhooksRoutes from './routes/webhooks';
 import todosRoutes from './routes/todos';
+import imagesRoutes from './routes/images';
 
 const app = new OpenAPIHono<{ Bindings: Bindings }>();
 
 // CORS configuration
 app.use('/*', cors({
-  origin: ['http://localhost:3000', 'http://localhost:4200'],
+  origin: (origin) => {
+    // Allow localhost for development
+    if (origin?.includes('localhost')) return origin;
+
+    // Allow Vercel deployments
+    if (origin?.endsWith('.vercel.app')) return origin;
+
+    // Allow production domains (add your custom domains here)
+    const allowedDomains = [
+      'http://localhost:3000',
+      'http://localhost:4200',
+      // Add your production frontend URL here
+      // 'https://your-domain.com',
+    ];
+
+    return allowedDomains.includes(origin || '') ? origin : allowedDomains[0];
+  },
   credentials: true,
 }));
 
@@ -20,6 +37,7 @@ app.route('/', healthRoutes);
 app.route('/', fruitsRoutes);
 app.route('/', webhooksRoutes);
 app.route('/', todosRoutes);
+app.route('/', imagesRoutes);
 
 // OpenAPI documentation endpoint
 app.doc('/docs/openapi.json', {
@@ -33,6 +51,7 @@ app.doc('/docs/openapi.json', {
     { name: 'Health', description: 'Health check endpoints' },
     { name: 'Fruits', description: 'Fruits CRUD operations' },
     { name: 'Todos', description: 'Todos CRUD operations' },
+    { name: 'Images', description: 'Image upload and management with R2' },
   ],
 });
 

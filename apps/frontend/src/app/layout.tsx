@@ -1,4 +1,5 @@
 import { type Metadata } from 'next';
+import Link from 'next/link';
 import {
   ClerkProvider,
   SignInButton,
@@ -64,6 +65,22 @@ export default function RootLayout({
               <h1 className="text-xl font-semibold text-slate-800">Your App</h1>
             </div>
             <div className="flex items-center gap-4">
+              <SignedIn>
+                <nav className="flex items-center gap-4">
+                  <Link
+                    href="/"
+                    className="text-slate-700 hover:text-[#6c47ff] font-medium text-sm sm:text-base transition-colors"
+                  >
+                    Todos
+                  </Link>
+                  <Link
+                    href="/gallery"
+                    className="text-slate-700 hover:text-[#6c47ff] font-medium text-sm sm:text-base transition-colors"
+                  >
+                    Gallery
+                  </Link>
+                </nav>
+              </SignedIn>
               <SignedOut>
                 <SignInButton mode="modal">
                   <button className="text-slate-700 hover:text-slate-900 font-medium text-sm sm:text-base px-4 py-2 transition-colors">

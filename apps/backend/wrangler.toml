@@ -9,6 +9,10 @@ database_name = "next-hono-sqlite"
 database_id = "7c6cf140-8514-4684-b6a1-f669f8080cc0"
 migrations_dir = "drizzle/migrations"
 
+[[r2_buckets]]
+bucket_name = "next-hono-sqlite"
+binding = "next_hono_sqlite"
+
 # Development configuration
 [dev]
 port = 8787

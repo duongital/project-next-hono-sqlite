@@ -60,3 +60,22 @@ export const todos = sqliteTable('todos', {
 // Export todo types
 export type Todo = typeof todos.$inferSelect;
 export type NewTodo = typeof todos.$inferInsert;
+
+// Images table
+export const images = sqliteTable('images', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('user_id').notNull().references(() => users.id),
+  fileName: text('file_name').notNull(),
+  fileSize: integer('file_size').notNull(), // in bytes
+  mimeType: text('mime_type').notNull(),
+  r2Key: text('r2_key').notNull().unique(), // unique key in R2 bucket
+  url: text('url').notNull(), // public URL to access the image
+  width: integer('width'),
+  height: integer('height'),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Export image types
+export type Image = typeof images.$inferSelect;
+export type NewImage = typeof images.$inferInsert;

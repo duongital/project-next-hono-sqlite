@@ -16,6 +16,12 @@ import type {
   CreateTodoResponse,
   UpdateTodoRequest,
   DeleteTodoResponse,
+  Image,
+  GetImagesResponse,
+  CreateImageRequest,
+  CreateImageResponse,
+  DeleteImageResponse,
+  ImageUploadResponse,
 } from '@shared/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
@@ -135,6 +141,53 @@ export class ApiClient {
 
   async deleteTodo(id: number, token: string): Promise<DeleteTodoResponse> {
     return this.request<DeleteTodoResponse>(`/api/todos/${id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  // Images API methods (requires authentication)
+  async getImages(token: string): Promise<GetImagesResponse> {
+    return this.request<GetImagesResponse>('/api/images', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  async createImage(data: CreateImageRequest, token: string): Promise<CreateImageResponse> {
+    return this.request<CreateImageResponse>('/api/images', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  async uploadImage(imageId: number, file: File, token: string): Promise<ImageUploadResponse> {
+    const arrayBuffer = await file.arrayBuffer();
+
+    const response = await fetch(`${this.baseUrl}/api/images/${imageId}/upload`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/octet-stream',
+      },
+      body: arrayBuffer,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async deleteImage(id: number, token: string): Promise<DeleteImageResponse> {
+    return this.request<DeleteImageResponse>(`/api/images/${id}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,

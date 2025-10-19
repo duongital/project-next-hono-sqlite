@@ -131,3 +131,45 @@ export interface DeleteTodoResponse {
   success: boolean;
   message: string;
 }
+
+// Image Types
+export interface Image {
+  id: number;
+  userId: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  r2Key: string;
+  url: string;
+  width: number | null;
+  height: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface CreateImageRequest {
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  width?: number;
+  height?: number;
+}
+
+export interface CreateImageResponse {
+  image: Image;
+  uploadUrl: string;
+}
+
+export interface GetImagesResponse {
+  images: Image[];
+}
+
+export interface DeleteImageResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface ImageUploadResponse {
+  success: boolean;
+  url: string;
+}
