@@ -1,0 +1,44 @@
+{
+  "name": "backend",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/backend/src",
+  "projectType": "application",
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm wrangler dev",
+        "cwd": "apps/backend"
+      }
+    },
+    "deploy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm wrangler deploy",
+        "cwd": "apps/backend"
+      }
+    },
+    "db:create": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm wrangler d1 create backend-db",
+        "cwd": "apps/backend"
+      }
+    },
+    "db:migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm wrangler d1 execute backend-db --file=./src/db/schema.sql",
+        "cwd": "apps/backend"
+      }
+    },
+    "db:migrate:local": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm wrangler d1 execute backend-db --local --file=./src/db/schema.sql",
+        "cwd": "apps/backend"
+      }
+    }
+  },
+  "tags": []
+}
