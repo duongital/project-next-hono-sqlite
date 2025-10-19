@@ -47,11 +47,14 @@ pnpm lint
 # Create D1 database (outputs database_id for wrangler.toml)
 pnpm db:create
 
-# Run migrations on production database
-pnpm db:migrate
+# Generate migrations from Drizzle schema (after schema changes)
+pnpm db:generate
 
 # Run migrations on local database (for development)
 pnpm db:migrate:local
+
+# Run migrations on production database
+pnpm db:migrate
 ```
 
 ### Deployment
@@ -97,19 +100,21 @@ pnpm deploy:backend
 
 ### Database Schema
 
-The D1 database uses SQLite with two schema definitions:
-- **SQL migrations** in `apps/backend/src/db/schema.sql` (source of truth for production)
-- **Drizzle schema** in `apps/backend/src/db/schema.ts` (TypeScript definitions for type safety)
+The D1 database uses Drizzle ORM with Drizzle Kit for migrations:
+- **Drizzle schema** in `apps/backend/src/db/schema.ts` (source of truth)
+- **Generated migrations** in `apps/backend/drizzle/migrations/` (auto-generated from schema)
+- **Database client** in `apps/backend/src/db/client.ts` (typed D1 client)
 
 Current tables:
 - `items` table - id, name, description, timestamps
 - `fruits` table - id, name, price, quantity, timestamps
 
 When modifying schema:
-1. Update `apps/backend/src/db/schema.sql` (SQL migration)
-2. Update `apps/backend/src/db/schema.ts` (Drizzle schema)
+1. Update `apps/backend/src/db/schema.ts` (Drizzle schema - source of truth)
+2. Run `pnpm db:generate` to auto-generate SQL migrations in `drizzle/migrations/`
 3. Run `pnpm db:migrate:local` for local dev or `pnpm db:migrate` for production
 4. Update shared types in `packages/shared-types/src/index.ts` if needed
+5. Update route validators if the schema changes affect validation
 
 ### Environment Configuration
 
@@ -150,12 +155,15 @@ Example pattern (see `apps/backend/src/routes/fruits.ts` for reference)
 
 ### Database Schema Changes
 
-1. Modify `apps/backend/src/db/schema.sql` (SQL migration)
-2. Update `apps/backend/src/db/schema.ts` (Drizzle schema) to match
-3. Run `pnpm db:migrate:local` to apply to local database
-4. Update TypeScript types in `packages/shared-types/src/index.ts` if needed
-5. Update route validators if the schema changes affect validation
-6. For production, run `pnpm db:migrate` after deployment
+1. Update `apps/backend/src/db/schema.ts` (Drizzle schema)
+2. Run `pnpm db:generate` to auto-generate SQL migration files
+3. Review the generated migration in `apps/backend/drizzle/migrations/`
+4. Run `pnpm db:migrate:local` to apply to local database
+5. Update TypeScript types in `packages/shared-types/src/index.ts` if needed
+6. Update route validators if the schema changes affect validation
+7. For production, run `pnpm db:migrate` after deployment
+
+**Note**: Drizzle Kit automatically generates SQL migrations from your TypeScript schema changes. The generated migrations are stored in `apps/backend/drizzle/migrations/` and applied via Wrangler's D1 migration system.
 
 ### Testing Backend Locally
 
