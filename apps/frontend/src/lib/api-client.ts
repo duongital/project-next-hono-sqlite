@@ -10,6 +10,12 @@ import type {
   CreateFruitResponse,
   UpdateFruitRequest,
   DeleteFruitResponse,
+  Todo,
+  GetTodosResponse,
+  CreateTodoRequest,
+  CreateTodoResponse,
+  UpdateTodoRequest,
+  DeleteTodoResponse,
 } from '@shared/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
@@ -87,6 +93,52 @@ export class ApiClient {
   async deleteFruit(id: number): Promise<DeleteFruitResponse> {
     return this.request<DeleteFruitResponse>(`/api/fruits/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Todos API methods (requires authentication)
+  async getTodos(token: string): Promise<GetTodosResponse> {
+    return this.request<GetTodosResponse>('/api/todos', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  async getTodo(id: number, token: string): Promise<Todo> {
+    return this.request<Todo>(`/api/todos/${id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  async createTodo(data: CreateTodoRequest, token: string): Promise<CreateTodoResponse> {
+    return this.request<CreateTodoResponse>('/api/todos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  async updateTodo(id: number, data: UpdateTodoRequest, token: string): Promise<Todo> {
+    return this.request<Todo>(`/api/todos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  async deleteTodo(id: number, token: string): Promise<DeleteTodoResponse> {
+    return this.request<DeleteTodoResponse>(`/api/todos/${id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     });
   }
 }

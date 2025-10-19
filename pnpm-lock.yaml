@@ -53,6 +53,9 @@ importers:
 
   apps/backend:
     dependencies:
+      '@clerk/backend':
+        specifier: ^2.18.3
+        version: 2.18.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@hono/swagger-ui':
         specifier: ^0.5.2
         version: 0.5.2(hono@4.10.1)

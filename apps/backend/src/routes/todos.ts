@@ -1,10 +1,14 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { createDbClient } from '../db/client';
 import { todos } from '../db/schema';
 import type { Bindings } from '../types/bindings';
+import { clerkAuth, type AuthContext } from '../middleware/auth';
 
-const app = new OpenAPIHono<{ Bindings: Bindings }>();
+const app = new OpenAPIHono<{ Bindings: Bindings; Variables: AuthContext }>();
+
+// Apply authentication middleware to all routes
+app.use('/*', clerkAuth);
 
 // Schemas
 const IdParamSchema = z.object({
@@ -28,7 +32,6 @@ const TodoSchema = z.object({
 
 const CreateTodoSchema = z.object({
   task: z.string().min(1).max(500).openapi({ example: 'Complete the project' }),
-  userId: z.string().min(1).openapi({ example: 'user_123abc' }),
   isDone: z.boolean().default(false).openapi({ example: false }),
 });
 
@@ -62,12 +65,15 @@ const listRoute = createRoute({
 });
 
 app.openapi(listRoute, async (c) => {
+  const userId = c.get('userId');
   const db = createDbClient(c.env.DB);
-  const allTodos = await db.select().from(todos).all();
+
+  // Only return todos for the authenticated user
+  const userTodos = await db.select().from(todos).where(eq(todos.userId, userId)).all();
 
   return c.json({
-    todos: allTodos,
-    total: allTodos.length,
+    todos: userTodos,
+    total: userTodos.length,
   });
 });
 
@@ -101,9 +107,11 @@ const getRoute = createRoute({
 
 app.openapi(getRoute, async (c) => {
   const { id } = c.req.valid('param');
+  const userId = c.get('userId');
   const db = createDbClient(c.env.DB);
 
-  const todo = await db.select().from(todos).where(eq(todos.id, id)).get();
+  // Only allow access to user's own todos
+  const todo = await db.select().from(todos).where(and(eq(todos.id, id), eq(todos.userId, userId))).get();
 
   if (!todo) {
     return c.json({ error: 'Todo not found' }, 404);
@@ -152,9 +160,11 @@ const createTodoRoute = createRoute({
 
 app.openapi(createTodoRoute, async (c) => {
   const data = c.req.valid('json');
+  const userId = c.get('userId');
   const db = createDbClient(c.env.DB);
 
-  const result = await db.insert(todos).values(data).returning();
+  // Automatically assign userId from authenticated user
+  const result = await db.insert(todos).values({ ...data, userId }).returning();
   const newTodo = result[0];
 
   return c.json(
@@ -213,10 +223,11 @@ const updateRoute = createRoute({
 app.openapi(updateRoute, async (c) => {
   const { id } = c.req.valid('param');
   const data = c.req.valid('json');
+  const userId = c.get('userId');
   const db = createDbClient(c.env.DB);
 
-  // Check if todo exists
-  const existing = await db.select().from(todos).where(eq(todos.id, id)).get();
+  // Check if todo exists and belongs to user
+  const existing = await db.select().from(todos).where(and(eq(todos.id, id), eq(todos.userId, userId))).get();
   if (!existing) {
     return c.json({ error: 'Todo not found' }, 404);
   }
@@ -225,7 +236,7 @@ app.openapi(updateRoute, async (c) => {
   const result = await db
     .update(todos)
     .set({ ...data, updatedAt: new Date().toISOString() })
-    .where(eq(todos.id, id))
+    .where(and(eq(todos.id, id), eq(todos.userId, userId)))
     .returning();
 
   return c.json(result[0]);
@@ -264,15 +275,16 @@ const deleteRoute = createRoute({
 
 app.openapi(deleteRoute, async (c) => {
   const { id } = c.req.valid('param');
+  const userId = c.get('userId');
   const db = createDbClient(c.env.DB);
 
-  // Check if todo exists
-  const existing = await db.select().from(todos).where(eq(todos.id, id)).get();
+  // Check if todo exists and belongs to user
+  const existing = await db.select().from(todos).where(and(eq(todos.id, id), eq(todos.userId, userId))).get();
   if (!existing) {
     return c.json({ error: 'Todo not found' }, 404);
   }
 
-  await db.delete(todos).where(eq(todos.id, id));
+  await db.delete(todos).where(and(eq(todos.id, id), eq(todos.userId, userId)));
 
   return c.json({
     success: true,

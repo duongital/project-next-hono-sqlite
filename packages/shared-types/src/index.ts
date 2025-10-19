@@ -108,7 +108,6 @@ export interface Todo {
 
 export interface CreateTodoRequest {
   task: string;
-  userId: string;
   isDone?: boolean;
 }
 
