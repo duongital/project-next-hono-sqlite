@@ -3,13 +3,13 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
 # Uncomment after creating your D1 database
-# Run: pnpm wrangler d1 create your-database-name
+# Run: pnpx wrangler d1 create your-database-name
 # Then update these values with the output from the command above
-#
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "your-database-name"
-# database_id = "your-database-id"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "next-hono-sqlite"
+database_id = "7c6cf140-8514-4684-b6a1-f669f8080cc0"
 
 # Development configuration
 [dev]

@@ -36,4 +36,43 @@ export interface DeleteItemResponse {
 export interface HealthCheckResponse {
   status: 'ok' | 'error';
   timestamp: string;
+  database?: string;
+}
+
+// Fruit Types
+export interface Fruit {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface CreateFruitRequest {
+  name: string;
+  price: number;
+  quantity?: number;
+}
+
+export interface UpdateFruitRequest {
+  name?: string;
+  price?: number;
+  quantity?: number;
+}
+
+export interface CreateFruitResponse {
+  success: boolean;
+  id: number;
+  fruit: Fruit;
+}
+
+export interface GetFruitsResponse {
+  fruits: Fruit[];
+  total?: number;
+}
+
+export interface DeleteFruitResponse {
+  success: boolean;
+  message: string;
 }

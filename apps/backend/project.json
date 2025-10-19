@@ -21,21 +21,21 @@
     "db:create": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm wrangler d1 create backend-db",
+        "command": "pnpm wrangler d1 create next-hono-sqlite",
         "cwd": "apps/backend"
       }
     },
     "db:migrate": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm wrangler d1 execute backend-db --file=./src/db/schema.sql",
+        "command": "pnpm wrangler d1 execute next-hono-sqlite --file=./src/db/schema.sql",
         "cwd": "apps/backend"
       }
     },
     "db:migrate:local": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm wrangler d1 execute backend-db --local --file=./src/db/schema.sql",
+        "command": "pnpm wrangler d1 execute next-hono-sqlite --local --file=./src/db/schema.sql",
         "cwd": "apps/backend"
       }
     }

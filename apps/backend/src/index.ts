@@ -1,11 +1,11 @@
-import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
+import type { Bindings } from './types/bindings';
+import healthRoutes from './routes/health';
+import fruitsRoutes from './routes/fruits';
 
-type Bindings = {
-  DB: D1Database;
-};
-
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new OpenAPIHono<{ Bindings: Bindings }>();
 
 // CORS configuration
 app.use('/*', cors({
@@ -13,61 +13,25 @@ app.use('/*', cors({
   credentials: true,
 }));
 
-// Health check endpoint
-app.get('/', (c) => {
-  return c.json({ message: 'Hello from Hono on Cloudflare Workers!' });
+// Register routes
+app.route('/', healthRoutes);
+app.route('/', fruitsRoutes);
+
+// OpenAPI documentation endpoint
+app.doc('/docs/openapi.json', {
+  openapi: '3.0.0',
+  info: {
+    version: '1.0.0',
+    title: 'Hono Fruits API',
+    description: 'A simple CRUD API for managing fruits built with Hono, Drizzle ORM, and Cloudflare D1',
+  },
+  tags: [
+    { name: 'Health', description: 'Health check endpoints' },
+    { name: 'Fruits', description: 'Fruits CRUD operations' },
+  ],
 });
 
-// API routes
-app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Example endpoint using D1 database
-app.get('/api/items', async (c) => {
-  try {
-    const { results } = await c.env.DB.prepare(
-      'SELECT * FROM items ORDER BY created_at DESC'
-    ).all();
-    return c.json({ items: results });
-  } catch (error) {
-    return c.json({ error: 'Failed to fetch items' }, 500);
-  }
-});
-
-app.post('/api/items', async (c) => {
-  try {
-    const { name, description } = await c.req.json();
-
-    if (!name) {
-      return c.json({ error: 'Name is required' }, 400);
-    }
-
-    const result = await c.env.DB.prepare(
-      'INSERT INTO items (name, description) VALUES (?, ?)'
-    ).bind(name, description || null).run();
-
-    return c.json({
-      success: true,
-      id: result.meta.last_row_id
-    }, 201);
-  } catch (error) {
-    return c.json({ error: 'Failed to create item' }, 500);
-  }
-});
-
-app.delete('/api/items/:id', async (c) => {
-  try {
-    const id = c.req.param('id');
-
-    await c.env.DB.prepare(
-      'DELETE FROM items WHERE id = ?'
-    ).bind(id).run();
-
-    return c.json({ success: true });
-  } catch (error) {
-    return c.json({ error: 'Failed to delete item' }, 500);
-  }
-});
+// Swagger UI
+app.get('/docs', swaggerUI({ url: '/docs/openapi.json' }));
 
 export default app;

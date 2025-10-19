@@ -72,10 +72,17 @@ pnpm deploy:backend
 ### Key Architectural Patterns
 
 **Backend (Hono.js on Cloudflare Workers)**
-- Environment bindings are typed via the `Bindings` type (apps/backend/src/index.ts:4-6)
-- D1 database accessed through `c.env.DB` in route handlers
+- Built with **OpenAPIHono** from `@hono/zod-openapi` for automatic API documentation
+- Uses **Drizzle ORM** (`drizzle-orm/d1`) for type-safe database operations
+- **Zod validation** integrated via `@hono/zod-openapi` for request/response validation
+- Environment bindings are typed via the `Bindings` type (apps/backend/src/types/bindings.ts)
+- D1 database accessed through `c.env.DB`, initialized with `createDbClient(c.env.DB)`
 - CORS configured for localhost:3000 and localhost:4200
 - Database binding name must be "DB" to match code expectations
+- Routes organized in `apps/backend/src/routes/` directory
+- Drizzle schema defined in `apps/backend/src/db/schema.ts`
+- Swagger UI available at http://localhost:8787/docs
+- OpenAPI spec available at http://localhost:8787/docs/openapi.json
 
 **Frontend (Next.js)**
 - Uses a typed API client class (`ApiClient`) for backend communication (apps/frontend/src/lib/api-client.ts)
@@ -90,10 +97,19 @@ pnpm deploy:backend
 
 ### Database Schema
 
-The D1 database uses SQLite with schema defined in `apps/backend/src/db/schema.sql`:
-- `items` table with auto-incrementing id, name, description, and timestamps
-- Index on `created_at` for optimized queries
-- When modifying schema, update the SQL file and run `pnpm db:migrate:local` for local dev or `pnpm db:migrate` for production
+The D1 database uses SQLite with two schema definitions:
+- **SQL migrations** in `apps/backend/src/db/schema.sql` (source of truth for production)
+- **Drizzle schema** in `apps/backend/src/db/schema.ts` (TypeScript definitions for type safety)
+
+Current tables:
+- `items` table - id, name, description, timestamps
+- `fruits` table - id, name, price, quantity, timestamps
+
+When modifying schema:
+1. Update `apps/backend/src/db/schema.sql` (SQL migration)
+2. Update `apps/backend/src/db/schema.ts` (Drizzle schema)
+3. Run `pnpm db:migrate:local` for local dev or `pnpm db:migrate` for production
+4. Update shared types in `packages/shared-types/src/index.ts` if needed
 
 ### Environment Configuration
 
@@ -122,25 +138,48 @@ The D1 database uses SQLite with schema defined in `apps/backend/src/db/schema.s
 
 ### Adding a New API Endpoint
 
-1. Define request/response types in `packages/shared-types/src/index.ts`
-2. Implement the route handler in `apps/backend/src/index.ts`
-3. Add corresponding method to `ApiClient` class in `apps/frontend/src/lib/api-client.ts`
+1. Create Zod schemas inline in your route file using `z` from `@hono/zod-openapi`
+2. Define routes using `createRoute()` with OpenAPI metadata
+3. Implement route handlers using `app.openapi(route, handler)`
+4. Create route file in `apps/backend/src/routes/` and export the app
+5. Register routes in `apps/backend/src/index.ts` using `app.route('/', yourRoutes)`
+6. Define shared types in `packages/shared-types/src/index.ts`
+7. Add corresponding methods to `ApiClient` class in `apps/frontend/src/lib/api-client.ts`
+
+Example pattern (see `apps/backend/src/routes/fruits.ts` for reference)
 
 ### Database Schema Changes
 
-1. Modify `apps/backend/src/db/schema.sql`
-2. Run `pnpm db:migrate:local` to apply to local database
-3. Update TypeScript types in `packages/shared-types/src/index.ts` if needed
-4. For production, run `pnpm db:migrate` after deployment
+1. Modify `apps/backend/src/db/schema.sql` (SQL migration)
+2. Update `apps/backend/src/db/schema.ts` (Drizzle schema) to match
+3. Run `pnpm db:migrate:local` to apply to local database
+4. Update TypeScript types in `packages/shared-types/src/index.ts` if needed
+5. Update route validators if the schema changes affect validation
+6. For production, run `pnpm db:migrate` after deployment
 
 ### Testing Backend Locally
 
 The backend runs on http://localhost:8787 with these endpoints:
-- `GET /` - Health check
-- `GET /api/health` - Detailed health status
+
+**Documentation:**
+- `GET /docs` - Swagger UI (interactive API documentation)
+- `GET /docs/openapi.json` - OpenAPI specification
+
+**Health:**
+- `GET /` - Basic health check
+- `GET /api/health` - Detailed health status (includes database connection)
+
+**Items (legacy):**
 - `GET /api/items` - List all items
 - `POST /api/items` - Create a new item
 - `DELETE /api/items/:id` - Delete an item
+
+**Fruits (example CRUD with Drizzle + Zod):**
+- `GET /api/fruits` - List all fruits
+- `GET /api/fruits/:id` - Get single fruit
+- `POST /api/fruits` - Create fruit (validated)
+- `PUT /api/fruits/:id` - Update fruit (validated)
+- `DELETE /api/fruits/:id` - Delete fruit
 
 ### Deployment Process
 
