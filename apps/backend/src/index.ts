@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import type { Bindings } from './types/bindings';
+import { requestLogger, errorLogger } from './middleware/logging';
 import healthRoutes from './routes/health';
 import fruitsRoutes from './routes/fruits';
 import webhooksRoutes from './routes/webhooks';
@@ -9,6 +10,12 @@ import todosRoutes from './routes/todos';
 import imagesRoutes from './routes/images';
 
 const app = new OpenAPIHono<{ Bindings: Bindings }>();
+
+// Observability: Error logging middleware (must be first)
+app.use('/*', errorLogger());
+
+// Observability: Request/response logging
+app.use('/*', requestLogger());
 
 // CORS configuration
 app.use('/*', cors({

@@ -78,6 +78,7 @@ pnpm deploy:backend
 - Built with **OpenAPIHono** from `@hono/zod-openapi` for automatic API documentation
 - Uses **Drizzle ORM** (`drizzle-orm/d1`) for type-safe database operations
 - **Zod validation** integrated via `@hono/zod-openapi` for request/response validation
+- **Structured logging** with request/response tracking, error logging, and DB query performance monitoring
 - Environment bindings are typed via the `Bindings` type (apps/backend/src/types/bindings.ts)
 - D1 database accessed through `c.env.DB`, initialized with `createDbClient(c.env.DB)`
 - CORS configured for localhost:3000 and localhost:4200
@@ -198,3 +199,145 @@ The backend runs on http://localhost:8787 with these endpoints:
 - Environment Variable: `NEXT_PUBLIC_API_URL` (set to Cloudflare Worker URL)
 
 **Backend**: Run `pnpm deploy:backend` (requires Cloudflare Wrangler authentication)
+
+## Observability
+
+The backend includes comprehensive observability features for monitoring, debugging, and performance tracking.
+
+### Structured Logging
+
+All logs are output in JSON format with consistent structure, making them easy to query and analyze in Cloudflare Dashboard.
+
+**Log Levels**: DEBUG, INFO, WARN, ERROR
+
+**Automatic Logging**:
+- All HTTP requests/responses with timing and status codes
+- Database queries with execution time
+- Errors with full stack traces
+- User context (userId, requestId) attached to all logs
+
+### Viewing Logs
+
+**Development (Real-time)**:
+```bash
+# Stream logs from your deployed Worker
+wrangler tail
+
+# Stream logs from local dev server
+pnpm dev:backend
+# Logs appear in terminal
+```
+
+**Production (Cloudflare Dashboard)**:
+1. Go to Cloudflare Dashboard > Workers & Pages
+2. Select your Worker
+3. Click "Logs" tab
+4. Use the search/filter to find specific requests, errors, or users
+
+### Using Structured Logging in Routes
+
+```typescript
+import { createLogger } from '../middleware/logging';
+import { createDbLogger } from '../utils/db-logger';
+
+app.openapi(yourRoute, async (c) => {
+  const logger = createLogger(c);
+  const dbLogger = createDbLogger(logger);
+
+  // Log info messages
+  logger.info('Processing request', { customData: 'value' });
+
+  // Log database queries with performance tracking
+  const results = await dbLogger.logQuery('SELECT', 'tableName', async () =>
+    db.select().from(table)
+  );
+
+  // Log warnings
+  logger.warn('Something unexpected', { details: 'info' });
+
+  // Log errors with stack traces
+  try {
+    // ... code
+  } catch (error) {
+    logger.error('Operation failed', error, { context: 'additional info' });
+    throw error;
+  }
+});
+```
+
+### Log Structure
+
+Every log entry includes:
+- `timestamp`: ISO 8601 timestamp
+- `level`: Log level (DEBUG, INFO, WARN, ERROR)
+- `message`: Human-readable message
+- `requestId`: Unique ID for the request (useful for tracing)
+- `userId`: Authenticated user ID (when available)
+- `metadata`: Custom key-value pairs
+- `error`: Error details with stack trace (for ERROR level)
+
+Example log output:
+```json
+{
+  "timestamp": "2025-10-19T12:34:56.789Z",
+  "level": "INFO",
+  "message": "Database query executed",
+  "requestId": "1729340096789-abc123def",
+  "userId": "user_123abc",
+  "metadata": {
+    "operation": "SELECT",
+    "table": "images",
+    "duration": 42
+  }
+}
+```
+
+### Middleware Stack
+
+The following middleware is configured in `apps/backend/src/index.ts`:
+
+1. **errorLogger**: Catches unhandled errors and logs with stack traces
+2. **requestLogger**: Logs all incoming requests and outgoing responses with timing
+
+### Performance Monitoring
+
+- **Request Duration**: Automatically tracked for all HTTP requests
+- **Database Query Time**: Tracked when using `DbLogger`
+- **File Upload Size**: Logged for R2 operations
+
+### Advanced: Cloudflare Workers Analytics
+
+For production deployments, consider enabling:
+
+**Workers Logpush** (Paid plan - $5/month):
+- Export logs to external services (Datadog, New Relic, S3, etc.)
+- Configure in Cloudflare Dashboard or via wrangler.toml:
+  ```toml
+  [observability]
+  enabled = true
+  ```
+
+**Analytics Engine** (for custom metrics):
+- Track business metrics beyond standard logs
+- Requires separate setup in Worker code
+
+### Best Practices
+
+1. **Use structured logging**: Always pass metadata as objects, not in message strings
+   ```typescript
+   // Good
+   logger.info('User created', { userId: user.id, email: user.email });
+
+   // Avoid
+   logger.info(`User ${user.id} created with email ${user.email}`);
+   ```
+
+2. **Include context**: Add relevant IDs and metadata to help with debugging
+
+3. **Log at appropriate levels**:
+   - DEBUG: Detailed debugging info (rarely used in production)
+   - INFO: Normal operations, successful actions
+   - WARN: Unexpected but handled situations
+   - ERROR: Failures that require attention
+
+4. **Don't log sensitive data**: Avoid logging passwords, tokens, or PII
