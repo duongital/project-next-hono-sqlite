@@ -76,3 +76,22 @@ export interface DeleteFruitResponse {
   success: boolean;
   message: string;
 }
+
+// User Types (Clerk sync)
+export interface User {
+  id: string; // Clerk user ID (e.g., user_xxx)
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  imageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateUserRequest {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  imageUrl?: string;
+}

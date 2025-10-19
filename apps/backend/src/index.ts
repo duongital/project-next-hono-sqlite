@@ -4,6 +4,7 @@ import { cors } from 'hono/cors';
 import type { Bindings } from './types/bindings';
 import healthRoutes from './routes/health';
 import fruitsRoutes from './routes/fruits';
+import webhooksRoutes from './routes/webhooks';
 
 const app = new OpenAPIHono<{ Bindings: Bindings }>();
 
@@ -16,6 +17,7 @@ app.use('/*', cors({
 // Register routes
 app.route('/', healthRoutes);
 app.route('/', fruitsRoutes);
+app.route('/', webhooksRoutes);
 
 // OpenAPI documentation endpoint
 app.doc('/docs/openapi.json', {

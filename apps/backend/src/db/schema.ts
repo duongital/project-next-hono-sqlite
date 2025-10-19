@@ -31,3 +31,18 @@ export const categories = sqliteTable('categories', {
   id: integer('id').primaryKey(),
   name: text('name').notNull(),
 });
+
+// Users table (Clerk sync)
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(), // Clerk user ID (e.g., user_xxx)
+  email: text('email').notNull().unique(),
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  imageUrl: text('image_url'),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Export user types
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
