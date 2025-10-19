@@ -1,6 +1,6 @@
 {
   "buildCommand": "cd ../.. && pnpm nx build frontend",
-  "outputDirectory": "../../dist/apps/frontend/.next",
+  "outputDirectory": ".next",
   "framework": "nextjs",
   "installCommand": "pnpm install"
 }
