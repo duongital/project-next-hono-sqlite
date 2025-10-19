@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nx run-many -t serve --parallel=2",
-    "dev:frontend": "nx serve frontend",
+    "dev": "nx run-many -t dev serve --parallel=2",
+    "dev:frontend": "nx dev frontend",
     "dev:backend": "nx serve backend",
     "build": "nx run-many -t build --all",
     "build:frontend": "nx build frontend",
