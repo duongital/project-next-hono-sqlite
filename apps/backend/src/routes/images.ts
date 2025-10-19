@@ -147,6 +147,9 @@ app.openapi(createImageRoute, async (c) => {
   const body = c.req.valid('json');
   const db = createDbClient(c.env.DB);
 
+  console.log('[Create] Creating image metadata for user:', userId);
+  console.log('[Create] File:', body.fileName, 'Size:', body.fileSize);
+
   // Generate unique R2 key
   const timestamp = Date.now();
   const randomStr = Math.random().toString(36).substring(7);
@@ -154,6 +157,9 @@ app.openapi(createImageRoute, async (c) => {
 
   // Construct public URL
   const url = `${c.env.R2_PUBLIC_URL}/${r2Key}`;
+
+  console.log('[Create] R2 Key:', r2Key);
+  console.log('[Create] Public URL:', url);
 
   // Insert metadata into database
   const result = await db
@@ -172,6 +178,8 @@ app.openapi(createImageRoute, async (c) => {
 
   const image = result[0];
 
+  console.log('[Create] Created image record with ID:', image.id);
+
   // For direct upload, we'll return the image metadata
   // The frontend will upload directly to R2 using the r2Key
   return c.json(
@@ -186,7 +194,7 @@ app.openapi(createImageRoute, async (c) => {
 // Upload image file to R2
 const uploadImageRoute = createRoute({
   method: 'put',
-  path: '/api/images/:id/upload',
+  path: '/api/images/{id}/upload',
   tags: ['Images'],
   summary: 'Upload image file to R2',
   security: [{ Bearer: [] }],
@@ -225,55 +233,89 @@ const uploadImageRoute = createRoute({
         },
       },
     },
+    500: {
+      description: 'R2 storage not configured',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
   },
 });
 
 app.openapi(uploadImageRoute, async (c) => {
-  const userId = c.get('userId');
-  const { id } = c.req.valid('param');
-  const db = createDbClient(c.env.DB);
+  try {
+    const userId = c.get('userId');
+    const { id } = c.req.valid('param');
+    const db = createDbClient(c.env.DB);
 
-  // Get image metadata
-  const imageResults = await db
-    .select()
-    .from(images)
-    .where(eq(images.id, id))
-    .limit(1);
+    console.log('[Upload] Starting upload for image ID:', id, 'user:', userId);
+    console.log('[Upload] Available env keys:', Object.keys(c.env));
+    console.log('[Upload] IMAGES_BUCKET exists:', !!c.env.IMAGES_BUCKET);
+    console.log('[Upload] next_hono_sqlite exists:', !!(c.env as any).next_hono_sqlite);
 
-  if (imageResults.length === 0) {
-    return c.json({ error: 'Image not found' }, 404);
+    // Check if R2 is configured (try both binding names)
+    const bucket = c.env.IMAGES_BUCKET || (c.env as any).next_hono_sqlite;
+    if (!bucket) {
+      console.error('[Upload] R2 bucket not found in env');
+      return c.json({ error: 'R2 storage not configured. Please configure R2 bucket in wrangler.toml' }, 500);
+    }
+
+    // Get image metadata
+    const imageResults = await db
+      .select()
+      .from(images)
+      .where(eq(images.id, id))
+      .limit(1);
+
+    if (imageResults.length === 0) {
+      console.error('[Upload] Image not found:', id);
+      return c.json({ error: 'Image not found' }, 404);
+    }
+
+    const image = imageResults[0];
+    console.log('[Upload] Found image:', image.r2Key);
+
+    // Verify ownership
+    if (image.userId !== userId) {
+      console.error('[Upload] Unauthorized access attempt');
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    // Get the file data from request body
+    const fileData = await c.req.arrayBuffer();
+    console.log('[Upload] File data size:', fileData.byteLength);
+
+    // Upload to R2
+    await bucket.put(image.r2Key, fileData, {
+      httpMetadata: {
+        contentType: image.mimeType,
+      },
+    });
+
+    console.log('[Upload] Successfully uploaded to R2:', image.r2Key);
+
+    return c.json(
+      {
+        success: true,
+        url: image.url,
+      },
+      200
+    );
+  } catch (error) {
+    console.error('[Upload] Error:', error);
+    return c.json({
+      error: 'Upload failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
   }
-
-  const image = imageResults[0];
-
-  // Verify ownership
-  if (image.userId !== userId) {
-    return c.json({ error: 'Unauthorized' }, 401);
-  }
-
-  // Get the file data from request body
-  const fileData = await c.req.arrayBuffer();
-
-  // Upload to R2
-  await c.env.IMAGES_BUCKET.put(image.r2Key, fileData, {
-    httpMetadata: {
-      contentType: image.mimeType,
-    },
-  });
-
-  return c.json(
-    {
-      success: true,
-      url: image.url,
-    },
-    200
-  );
 });
 
 // Delete image
 const deleteImageRoute = createRoute({
   method: 'delete',
-  path: '/api/images/:id',
+  path: '/api/images/{id}',
   tags: ['Images'],
   summary: 'Delete an image',
   security: [{ Bearer: [] }],
