@@ -2,6 +2,70 @@
 
 A modern monorepo built with Nx, featuring a Next.js frontend and Hono.js backend on Cloudflare Workers with D1 database.
 
+## Application Architecture
+
+```mermaid
+graph TB
+    subgraph "Development Environment"
+        DEV[Developer]
+    end
+
+    subgraph "Nx Monorepo"
+        subgraph "apps/frontend"
+            FE[Next.js 15<br/>App Router]
+            API_CLIENT[API Client<br/>lib/api-client.ts]
+            FE --> API_CLIENT
+        end
+
+        subgraph "apps/backend"
+            BE[Hono.js API<br/>index.ts]
+            ROUTES[API Routes<br/>/api/health<br/>/api/items]
+            DB_ACCESS[D1 Database<br/>Access Layer]
+            BE --> ROUTES
+            ROUTES --> DB_ACCESS
+        end
+
+        subgraph "packages/shared-types"
+            TYPES[TypeScript Types<br/>Item, ApiResponse<br/>Request/Response Types]
+        end
+
+        TYPES -.->|imports| API_CLIENT
+        TYPES -.->|imports| ROUTES
+    end
+
+    subgraph "Local Database"
+        LOCAL_D1[(Local D1<br/>SQLite)]
+        SCHEMA[schema.sql<br/>items table]
+        SCHEMA -.->|defines| LOCAL_D1
+    end
+
+    subgraph "Production - Vercel"
+        VERCEL[Vercel<br/>Next.js Frontend<br/>:3000 dev]
+    end
+
+    subgraph "Production - Cloudflare"
+        WORKER[Cloudflare Workers<br/>Hono.js API<br/>:8787 dev]
+        PROD_D1[(D1 Database<br/>SQLite)]
+        WORKER --> PROD_D1
+    end
+
+    DEV -->|pnpm dev| FE
+    DEV -->|pnpm dev| BE
+    API_CLIENT -->|HTTP Requests<br/>NEXT_PUBLIC_API_URL| ROUTES
+    DB_ACCESS -->|SQL Queries| LOCAL_D1
+
+    FE -.->|pnpm build:frontend<br/>nx build frontend| VERCEL
+    BE -.->|pnpm deploy:backend<br/>nx deploy backend| WORKER
+
+    style FE fill:#0070f3
+    style BE fill:#ff6b35
+    style TYPES fill:#3178c6
+    style LOCAL_D1 fill:#44a8b3
+    style PROD_D1 fill:#44a8b3
+    style VERCEL fill:#000
+    style WORKER fill:#f38020
+```
+
 ## Architecture
 
 ```
