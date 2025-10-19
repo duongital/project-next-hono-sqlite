@@ -1,3 +1,8 @@
 # Add your development environment variables here
 # This file is for local development only and should not be committed
 # Copy this to .dev.vars and fill in your values
+
+# Clerk Webhook Secret
+# Get this from Clerk Dashboard -> Webhooks -> Add Endpoint -> Copy signing secret
+# Format: whsec_xxx...
+# Then deploy into wrangler: cd apps/backend && pnpm wrangler secret put CLERK_WEBHOOK_SECRET
