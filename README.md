@@ -100,6 +100,23 @@ pnpm db:migrate       # Apply migrations to production
 pnpm deploy:backend   # Deploy to Cloudflare Workers
 ```
 
+### Package Management
+
+This monorepo uses separate `package.json` files for each app. Install dependencies using filters:
+
+```bash
+# Install to frontend
+pnpm add <package> --filter frontend
+pnpm add -D <package> --filter frontend  # dev dependency
+
+# Install to backend
+pnpm add <package> --filter backend
+pnpm add -D <package> --filter backend   # dev dependency
+
+# Install to workspace root (shared tooling only)
+pnpm add -D <package> -w
+```
+
 ## Structure
 
 ```
