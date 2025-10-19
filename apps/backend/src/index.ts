@@ -5,6 +5,7 @@ import type { Bindings } from './types/bindings';
 import healthRoutes from './routes/health';
 import fruitsRoutes from './routes/fruits';
 import webhooksRoutes from './routes/webhooks';
+import todosRoutes from './routes/todos';
 
 const app = new OpenAPIHono<{ Bindings: Bindings }>();
 
@@ -18,18 +19,20 @@ app.use('/*', cors({
 app.route('/', healthRoutes);
 app.route('/', fruitsRoutes);
 app.route('/', webhooksRoutes);
+app.route('/', todosRoutes);
 
 // OpenAPI documentation endpoint
 app.doc('/docs/openapi.json', {
   openapi: '3.0.0',
   info: {
     version: '1.0.0',
-    title: 'Hono Fruits API',
-    description: 'A simple CRUD API for managing fruits built with Hono, Drizzle ORM, and Cloudflare D1',
+    title: 'Hono API',
+    description: 'A CRUD API built with Hono, Drizzle ORM, and Cloudflare D1',
   },
   tags: [
     { name: 'Health', description: 'Health check endpoints' },
     { name: 'Fruits', description: 'Fruits CRUD operations' },
+    { name: 'Todos', description: 'Todos CRUD operations' },
   ],
 });
 

@@ -46,3 +46,17 @@ export const users = sqliteTable('users', {
 // Export user types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+
+// Todos table
+export const todos = sqliteTable('todos', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  task: text('task').notNull(),
+  isDone: integer('is_done', { mode: 'boolean' }).notNull().default(false),
+  userId: text('user_id').notNull().references(() => users.id),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Export todo types
+export type Todo = typeof todos.$inferSelect;
+export type NewTodo = typeof todos.$inferInsert;

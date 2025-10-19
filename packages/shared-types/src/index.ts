@@ -95,3 +95,40 @@ export interface CreateUserRequest {
   lastName?: string;
   imageUrl?: string;
 }
+
+// Todo Types
+export interface Todo {
+  id: number;
+  task: string;
+  isDone: boolean;
+  userId: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface CreateTodoRequest {
+  task: string;
+  userId: string;
+  isDone?: boolean;
+}
+
+export interface UpdateTodoRequest {
+  task?: string;
+  isDone?: boolean;
+}
+
+export interface CreateTodoResponse {
+  success: boolean;
+  id: number;
+  todo: Todo;
+}
+
+export interface GetTodosResponse {
+  todos: Todo[];
+  total?: number;
+}
+
+export interface DeleteTodoResponse {
+  success: boolean;
+  message: string;
+}
