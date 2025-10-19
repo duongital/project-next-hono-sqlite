@@ -13,8 +13,9 @@
     "test": "nx run-many -t test --all",
     "lint": "nx run-many -t lint --all",
     "db:create": "nx db:create backend",
-    "db:migrate": "nx db:migrate backend",
-    "db:migrate:local": "nx db:migrate:local backend"
+    "db:generate": "nx db:generate backend",
+    "db:migrate:local": "nx db:migrate:local backend",
+    "db:migrate:prod": "nx db:migrate:prod backend"
   },
   "keywords": [],
   "author": "",

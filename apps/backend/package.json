@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply next-hono-sqlite --local",
+    "db:migrate:prod": "wrangler d1 migrations apply next-hono-sqlite --remote"
   },
   "dependencies": {
     "@hono/swagger-ui": "^0.5.2",

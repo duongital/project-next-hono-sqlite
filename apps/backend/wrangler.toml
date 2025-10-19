@@ -2,14 +2,12 @@ name = "backend"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
-# Uncomment after creating your D1 database
-# Run: pnpx wrangler d1 create your-database-name
-# Then update these values with the output from the command above
-
+# D1 Database configuration
 [[d1_databases]]
 binding = "DB"
 database_name = "next-hono-sqlite"
 database_id = "7c6cf140-8514-4684-b6a1-f669f8080cc0"
+migrations_dir = "drizzle/migrations"
 
 # Development configuration
 [dev]

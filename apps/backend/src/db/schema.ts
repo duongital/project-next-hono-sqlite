@@ -26,3 +26,8 @@ export type NewItem = typeof items.$inferInsert;
 
 export type Fruit = typeof fruits.$inferSelect;
 export type NewFruit = typeof fruits.$inferInsert;
+
+export const categories = sqliteTable('categories', {
+  id: integer('id').primaryKey(),
+  name: text('name').notNull(),
+});

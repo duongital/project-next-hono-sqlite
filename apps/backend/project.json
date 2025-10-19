@@ -32,10 +32,24 @@
         "cwd": "apps/backend"
       }
     },
+    "db:generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm drizzle-kit generate",
+        "cwd": "apps/backend"
+      }
+    },
     "db:migrate:local": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm wrangler d1 execute next-hono-sqlite --local --file=./src/db/schema.sql",
+        "command": "pnpm wrangler d1 migrations apply next-hono-sqlite --local",
+        "cwd": "apps/backend"
+      }
+    },
+    "db:migrate:prod": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm wrangler d1 migrations apply next-hono-sqlite --remote",
         "cwd": "apps/backend"
       }
     }
