@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useAuth, SignedIn, SignedOut } from '@clerk/nextjs';
+import { useSession } from '../../lib/auth-client';
 import { apiClient } from '../../lib/api-client';
 import type { Image } from '@shared/types';
 
 export default function Gallery() {
-  const { getToken, isSignedIn } = useAuth();
+  const { data: session, isPending } = useSession();
   const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -17,10 +17,7 @@ export default function Gallery() {
     try {
       setLoading(true);
       setError(null);
-      const token = await getToken();
-      if (!token) return;
-
-      const response = await apiClient.getImages(token);
+      const response = await apiClient.getImages();
       setImages(response.images);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch images');
@@ -51,26 +48,21 @@ export default function Gallery() {
     try {
       setUploading(true);
       setError(null);
-      const token = await getToken();
-      if (!token) return;
 
       // Get image dimensions
       const dimensions = await getImageDimensions(file);
 
       // Step 1: Create image metadata
-      const createResponse = await apiClient.createImage(
-        {
-          fileName: file.name,
-          fileSize: file.size,
-          mimeType: file.type,
-          width: dimensions.width,
-          height: dimensions.height,
-        },
-        token
-      );
+      const createResponse = await apiClient.createImage({
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type,
+        width: dimensions.width,
+        height: dimensions.height,
+      });
 
       // Step 2: Upload the actual file
-      await apiClient.uploadImage(createResponse.image.id, file, token);
+      await apiClient.uploadImage(createResponse.image.id, file);
 
       // Refresh the gallery
       fetchImages();
@@ -103,10 +95,7 @@ export default function Gallery() {
 
     try {
       setError(null);
-      const token = await getToken();
-      if (!token) return;
-
-      await apiClient.deleteImage(id, token);
+      await apiClient.deleteImage(id);
       fetchImages();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete image');
@@ -114,112 +103,128 @@ export default function Gallery() {
   };
 
   useEffect(() => {
-    if (isSignedIn) {
+    if (session?.user) {
       fetchImages();
     }
-  }, [isSignedIn]);
+  }, [session]);
 
-  return (
-    <div className="container mx-auto max-w-6xl px-4 py-12">
-      <SignedOut>
+  if (isPending) {
+    return (
+      <div className="container mx-auto max-w-6xl px-4 py-12 text-center">
+        <p className="text-slate-600">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!session?.user) {
+    return (
+      <div className="container mx-auto max-w-6xl px-4 py-12">
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold text-slate-800 mb-4">
             Welcome to Gallery
           </h2>
-          <p className="text-slate-600">
+          <p className="text-slate-600 mb-6">
             Please sign in to view your images
           </p>
+          <a
+            href="/login"
+            className="inline-block px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium rounded-lg transition-all shadow-md hover:shadow-lg"
+          >
+            Sign In
+          </a>
         </div>
-      </SignedOut>
+      </div>
+    );
+  }
 
-      <SignedIn>
-        <div>
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-800">My Gallery</h1>
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-                disabled={uploading}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="px-6 py-3 bg-[#6c47ff] hover:bg-[#5a3de0] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
-              >
-                {uploading ? 'Uploading...' : 'Upload Image'}
-              </button>
-            </div>
+  return (
+    <div className="container mx-auto max-w-6xl px-4 py-12">
+      <div>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-slate-800">My Gallery</h1>
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+              disabled={uploading}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+            >
+              {uploading ? 'Uploading...' : 'Upload Image'}
+            </button>
           </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-              {error}
-            </div>
-          )}
-
-          {/* Loading State */}
-          {loading && images.length === 0 && (
-            <div className="text-center py-8 text-slate-600">
-              Loading images...
-            </div>
-          )}
-
-          {/* Empty State */}
-          {!loading && images.length === 0 && (
-            <div className="text-center py-12">
-              <div className="aspect-square max-w-md mx-auto bg-slate-100 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center mb-4">
-                <p className="text-slate-400">No images yet</p>
-              </div>
-              <p className="text-slate-600">Upload your first image to get started!</p>
-            </div>
-          )}
-
-          {/* Images Grid */}
-          {images.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {images.map((image) => (
-                <div
-                  key={image.id}
-                  className="group relative aspect-square bg-slate-100 rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-shadow"
-                >
-                  <img
-                    src={image.url}
-                    alt={image.fileName}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <button
-                      onClick={() => handleDeleteImage(image.id)}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 text-white text-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                    <p className="font-medium truncate">{image.fileName}</p>
-                    <p className="text-xs text-slate-300">
-                      {(image.fileSize / 1024).toFixed(1)} KB
-                      {image.width && image.height && ` • ${image.width}×${image.height}`}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Image Count */}
-          {images.length > 0 && (
-            <div className="mt-6 text-sm text-slate-600 text-center">
-              {images.length} {images.length === 1 ? 'image' : 'images'} in your gallery
-            </div>
-          )}
         </div>
-      </SignedIn>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && images.length === 0 && (
+          <div className="text-center py-8 text-slate-600">
+            Loading images...
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && images.length === 0 && (
+          <div className="text-center py-12">
+            <div className="aspect-square max-w-md mx-auto bg-slate-100 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center mb-4">
+              <p className="text-slate-400">No images yet</p>
+            </div>
+            <p className="text-slate-600">Upload your first image to get started!</p>
+          </div>
+        )}
+
+        {/* Images Grid */}
+        {images.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {images.map((image) => (
+              <div
+                key={image.id}
+                className="group relative aspect-square bg-slate-100 rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-shadow"
+              >
+                <img
+                  src={image.url}
+                  alt={image.fileName}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <button
+                    onClick={() => handleDeleteImage(image.id)}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 text-white text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                  <p className="font-medium truncate">{image.fileName}</p>
+                  <p className="text-xs text-slate-300">
+                    {(image.fileSize / 1024).toFixed(1)} KB
+                    {image.width && image.height && ` • ${image.width}×${image.height}`}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Image Count */}
+        {images.length > 0 && (
+          <div className="mt-6 text-sm text-slate-600 text-center">
+            {images.length} {images.length === 1 ? 'image' : 'images'} in your gallery
+          </div>
+        )}
+      </div>
     </div>
   );
 }

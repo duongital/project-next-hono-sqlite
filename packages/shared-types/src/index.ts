@@ -77,23 +77,32 @@ export interface DeleteFruitResponse {
   message: string;
 }
 
-// User Types (Clerk sync)
+// User Types (Better Auth)
 export interface User {
-  id: string; // Clerk user ID (e.g., user_xxx)
+  id: string;
   email: string;
-  firstName: string | null;
-  lastName: string | null;
-  imageUrl: string | null;
+  emailVerified: boolean;
+  name: string | null;
+  image: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface CreateUserRequest {
+export interface AuthSession {
   id: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  imageUrl?: string;
+  userId: string;
+  expiresAt: string;
+  token: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  session: AuthSession;
+}
+
+export interface ErrorResponse {
+  error: string;
+  message?: string;
 }
 
 // Todo Types

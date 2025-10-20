@@ -79,3 +79,63 @@ export const images = sqliteTable('images', {
 // Export image types
 export type Image = typeof images.$inferSelect;
 export type NewImage = typeof images.$inferInsert;
+
+// ============================================
+// BETTER AUTH TABLES
+// ============================================
+
+// Better Auth Users table (new auth system)
+export const authUser = sqliteTable('auth_user', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  emailVerified: integer('emailVerified', { mode: 'boolean' }).notNull().default(false),
+  name: text('name'),
+  image: text('image'),
+  createdAt: integer('createdAt', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' }).notNull(),
+});
+
+// Better Auth Sessions table
+export const authSession = sqliteTable('auth_session', {
+  id: text('id').primaryKey(),
+  userId: text('userId')
+    .notNull()
+    .references(() => authUser.id, { onDelete: 'cascade' }),
+  expiresAt: integer('expiresAt', { mode: 'timestamp' }).notNull(),
+  ipAddress: text('ipAddress'),
+  userAgent: text('userAgent'),
+  createdAt: integer('createdAt', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' }).notNull(),
+});
+
+// Better Auth Verification tokens (for OTP/Magic Links)
+export const authVerification = sqliteTable('auth_verification', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull(), // email
+  value: text('value').notNull(), // OTP code or token
+  expiresAt: integer('expiresAt', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('createdAt', { mode: 'timestamp' }),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' }),
+});
+
+// Better Auth Accounts table (for OAuth providers - optional for future use)
+export const authAccount = sqliteTable('auth_account', {
+  id: text('id').primaryKey(),
+  userId: text('userId')
+    .notNull()
+    .references(() => authUser.id, { onDelete: 'cascade' }),
+  accountId: text('accountId').notNull(),
+  providerId: text('providerId').notNull(),
+  accessToken: text('accessToken'),
+  refreshToken: text('refreshToken'),
+  expiresAt: integer('expiresAt', { mode: 'timestamp' }),
+  createdAt: integer('createdAt', { mode: 'timestamp' }),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' }),
+});
+
+// Export Better Auth types
+export type AuthUser = typeof authUser.$inferSelect;
+export type NewAuthUser = typeof authUser.$inferInsert;
+export type AuthSession = typeof authSession.$inferSelect;
+export type AuthVerification = typeof authVerification.$inferSelect;
+export type AuthAccount = typeof authAccount.$inferSelect;

@@ -3,12 +3,12 @@ import { and, eq } from 'drizzle-orm';
 import { createDbClient } from '../db/client';
 import { todos } from '../db/schema';
 import type { Bindings } from '../types/bindings';
-import { clerkAuth, type AuthContext } from '../middleware/auth';
+import { jwtAuth, type AuthContext } from '../middleware/auth';
 
 const app = new OpenAPIHono<{ Bindings: Bindings; Variables: AuthContext }>();
 
 // Apply authentication middleware to all routes
-app.use('/*', clerkAuth);
+app.use('/*', jwtAuth);
 
 // Schemas
 const IdParamSchema = z.object({

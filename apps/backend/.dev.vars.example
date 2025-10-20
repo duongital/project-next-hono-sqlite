@@ -1,8 +1,15 @@
-# Add your development environment variables here
-# This file is for local development only and should not be committed
-# Copy this to .dev.vars and fill in your values
+# Better Auth Configuration
+# Generate a random secret: openssl rand -base64 32
+BETTER_AUTH_SECRET=your-secret-key-here
+BETTER_AUTH_URL=http://localhost:8787
 
-# Clerk Webhook Secret
-# Get this from Clerk Dashboard -> Webhooks -> Add Endpoint -> Copy signing secret
-# Format: whsec_xxx...
-# Then deploy into wrangler: cd apps/backend && pnpm wrangler secret put CLERK_WEBHOOK_SECRET
+# Email Configuration (Cloudflare Mailchannels)
+FROM_EMAIL=noreply@yourdomain.com
+FROM_NAME=Your App Name
+
+# Optional: DKIM Configuration for production email signing
+# Generate DKIM keys: openssl genrsa -out private.key 2048
+# Then extract the private key base64
+# MAILCHANNELS_DKIM_DOMAIN=yourdomain.com
+# MAILCHANNELS_DKIM_SELECTOR=mailchannels
+# MAILCHANNELS_DKIM_PRIVATE_KEY=your-dkim-private-key

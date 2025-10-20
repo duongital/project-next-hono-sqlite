@@ -36,6 +36,13 @@
       "when": 1760872431945,
       "tag": "0004_strong_synch",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1760962349846,
+      "tag": "0005_crazy_crystal",
+      "breakpoints": true
     }
   ]
 }

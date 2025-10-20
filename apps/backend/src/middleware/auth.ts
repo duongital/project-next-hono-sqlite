@@ -1,12 +1,17 @@
 import { createMiddleware } from 'hono/factory';
-import { verifyToken } from '@clerk/backend';
+import { jwtVerify } from 'jose';
 import type { Bindings } from '../types/bindings';
 
 export type AuthContext = {
   userId: string;
+  user: {
+    id: string;
+    email: string;
+    name?: string;
+  };
 };
 
-export const clerkAuth = createMiddleware<{ Bindings: Bindings; Variables: AuthContext }>(
+export const jwtAuth = createMiddleware<{ Bindings: Bindings; Variables: AuthContext }>(
   async (c, next) => {
     const authHeader = c.req.header('Authorization');
 
@@ -17,31 +22,29 @@ export const clerkAuth = createMiddleware<{ Bindings: Bindings; Variables: AuthC
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     try {
-      const clerkSecretKey = c.env.CLERK_SECRET_KEY;
+      const secret = new TextEncoder().encode(c.env.BETTER_AUTH_SECRET);
 
-      if (!clerkSecretKey) {
-        console.error('CLERK_SECRET_KEY is not set in environment variables');
-        return c.json({ error: 'Server configuration error' }, 500);
-      }
-
-      // Verify the Clerk JWT token
-      const payload = await verifyToken(token, {
-        secretKey: clerkSecretKey,
+      // Verify JWT token using jose (Cloudflare Workers compatible)
+      const { payload } = await jwtVerify(token, secret, {
+        algorithms: ['HS256'],
       });
 
-      // Extract userId from the token payload
       const userId = payload.sub;
-
       if (!userId) {
         return c.json({ error: 'Unauthorized - Invalid token payload' }, 401);
       }
 
-      // Set userId in context for use in route handlers
+      // Set user context from JWT payload
       c.set('userId', userId);
+      c.set('user', {
+        id: userId,
+        email: payload.email as string,
+        name: payload.name as string | undefined,
+      });
 
       await next();
     } catch (error) {
-      console.error('Token verification failed:', error);
+      console.error('JWT verification failed:', error);
       return c.json({ error: 'Unauthorized - Invalid token' }, 401);
     }
   }
