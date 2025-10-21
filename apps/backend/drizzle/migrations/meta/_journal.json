@@ -57,6 +57,13 @@
       "when": 1761047928010,
       "tag": "0007_aberrant_blonde_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1761048478243,
+      "tag": "0008_parallel_silhouette",
+      "breakpoints": true
     }
   ]
 }

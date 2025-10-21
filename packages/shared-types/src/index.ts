@@ -114,6 +114,7 @@ export interface ErrorResponse {
 // Todo Types
 export interface Todo {
   id: number;
+  userId: string | null;
   task: string;
   isDone: boolean;
   createdAt: string | null;

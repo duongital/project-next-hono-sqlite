@@ -152,7 +152,7 @@ export class ApiClient {
     });
   }
 
-  // Todos API methods
+  // Todos API methods - Legacy (all todos)
   async getTodos(): Promise<GetTodosResponse> {
     return this.request<GetTodosResponse>('/api/todos');
   }
@@ -184,6 +184,40 @@ export class ApiClient {
   async deleteTodo(id: number): Promise<DeleteTodoResponse> {
     return this.request<DeleteTodoResponse>(
       `/api/todos/${id}`,
+      {
+        method: 'DELETE',
+      }
+    );
+  }
+
+  // User Todos API methods (authenticated)
+  async getUserTodos(): Promise<GetTodosResponse> {
+    return this.request<GetTodosResponse>('/api/todos/my-todos');
+  }
+
+  async createUserTodo(data: CreateTodoRequest): Promise<CreateTodoResponse> {
+    return this.request<CreateTodoResponse>(
+      '/api/todos/my-todos',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async updateUserTodo(id: number, data: UpdateTodoRequest): Promise<Todo> {
+    return this.request<Todo>(
+      `/api/todos/my-todos/${id}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async deleteUserTodo(id: number): Promise<DeleteTodoResponse> {
+    return this.request<DeleteTodoResponse>(
+      `/api/todos/my-todos/${id}`,
       {
         method: 'DELETE',
       }

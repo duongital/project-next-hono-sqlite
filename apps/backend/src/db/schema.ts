@@ -68,6 +68,7 @@ export type NewOTP = typeof otp.$inferInsert;
 // Todos table
 export const todos = sqliteTable('todos', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('user_id'), // Foreign key to users table (nullable for backward compatibility with existing todos)
   task: text('task').notNull(),
   isDone: integer('is_done', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),

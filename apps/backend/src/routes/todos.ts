@@ -3,8 +3,14 @@ import { eq } from 'drizzle-orm';
 import { createDbClient } from '../db/client';
 import { todos } from '../db/schema';
 import type { Bindings } from '../types/bindings';
+import { jwtAuth } from '../middleware/auth';
+import { createLogger } from '../middleware/logging';
 
 const app = new OpenAPIHono<{ Bindings: Bindings }>();
+
+// Create a separate app for authenticated routes
+const authenticatedApp = new OpenAPIHono<{ Bindings: Bindings; Variables: { userId: string } }>();
+authenticatedApp.use('*', jwtAuth);
 
 // Schemas
 const IdParamSchema = z.object({
@@ -39,7 +45,54 @@ const ErrorSchema = z.object({
   error: z.string().openapi({ example: 'Not found' }),
 });
 
-// List all todos
+// List user's todos (authenticated)
+const listUserTodosRoute = createRoute({
+  method: 'get',
+  path: '/api/todos/my-todos',
+  tags: ['Todos'],
+  responses: {
+    200: {
+      description: 'List of user todos',
+      content: {
+        'application/json': {
+          schema: z.object({
+            todos: z.array(TodoSchema),
+            total: z.number(),
+          }),
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+authenticatedApp.openapi(listUserTodosRoute, async (c) => {
+  const db = createDbClient(c.env.DB);
+  const logger = createLogger(c);
+  const userId = c.get('userId');
+
+  logger.info('Fetching user todos', { userId });
+
+  const userTodos = await db
+    .select()
+    .from(todos)
+    .where(eq(todos.userId, userId))
+    .all();
+
+  return c.json({
+    todos: userTodos,
+    total: userTodos.length,
+  });
+});
+
+// List all todos (legacy endpoint - kept for backward compatibility)
 const listRoute = createRoute({
   method: 'get',
   path: '/api/todos',
@@ -111,7 +164,81 @@ app.openapi(getRoute, async (c) => {
   return c.json(todo);
 });
 
-// Create new todo
+// Create user todo (authenticated)
+const createUserTodoRoute = createRoute({
+  method: 'post',
+  path: '/api/todos/my-todos',
+  tags: ['Todos'],
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: CreateTodoSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: 'Todo created successfully',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean(),
+            id: z.number(),
+            todo: TodoSchema,
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'Invalid request data',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+authenticatedApp.openapi(createUserTodoRoute, async (c) => {
+  const data = c.req.valid('json');
+  const db = createDbClient(c.env.DB);
+  const logger = createLogger(c);
+  const userId = c.get('userId');
+
+  logger.info('Creating todo for user', { userId, task: data.task });
+
+  const result = await db
+    .insert(todos)
+    .values({
+      ...data,
+      userId,
+    })
+    .returning();
+
+  const newTodo = result[0];
+
+  return c.json(
+    {
+      success: true,
+      id: newTodo.id,
+      todo: newTodo,
+    },
+    201
+  );
+});
+
+// Create new todo (legacy endpoint)
 const createTodoRoute = createRoute({
   method: 'post',
   path: '/api/todos',
@@ -166,7 +293,92 @@ app.openapi(createTodoRoute, async (c) => {
   );
 });
 
-// Update todo
+// Update user todo (authenticated)
+const updateUserTodoRoute = createRoute({
+  method: 'put',
+  path: '/api/todos/my-todos/{id}',
+  tags: ['Todos'],
+  request: {
+    params: IdParamSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: UpdateTodoSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Todo updated successfully',
+      content: {
+        'application/json': {
+          schema: TodoSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Todo not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    400: {
+      description: 'Invalid request data',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+authenticatedApp.openapi(updateUserTodoRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const data = c.req.valid('json');
+  const db = createDbClient(c.env.DB);
+  const logger = createLogger(c);
+  const userId = c.get('userId');
+
+  // Check if todo exists and belongs to user
+  const existing = await db
+    .select()
+    .from(todos)
+    .where(eq(todos.id, id))
+    .get();
+
+  if (!existing) {
+    return c.json({ error: 'Todo not found' }, 404);
+  }
+
+  if (existing.userId !== userId) {
+    return c.json({ error: 'Unauthorized' }, 403);
+  }
+
+  logger.info('Updating user todo', { userId, todoId: id });
+
+  // Update the todo
+  const result = await db
+    .update(todos)
+    .set({ ...data, updatedAt: new Date().toISOString() })
+    .where(eq(todos.id, id))
+    .returning();
+
+  return c.json(result[0]);
+});
+
+// Update todo (legacy endpoint)
 const updateRoute = createRoute({
   method: 'put',
   path: '/api/todos/{id}',
@@ -230,7 +442,72 @@ app.openapi(updateRoute, async (c) => {
   return c.json(result[0]);
 });
 
-// Delete todo
+// Delete user todo (authenticated)
+const deleteUserTodoRoute = createRoute({
+  method: 'delete',
+  path: '/api/todos/my-todos/{id}',
+  tags: ['Todos'],
+  request: {
+    params: IdParamSchema,
+  },
+  responses: {
+    200: {
+      description: 'Todo deleted successfully',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.boolean(),
+            message: z.string(),
+          }),
+        },
+      },
+    },
+    404: {
+      description: 'Todo not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+authenticatedApp.openapi(deleteUserTodoRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const db = createDbClient(c.env.DB);
+  const logger = createLogger(c);
+  const userId = c.get('userId');
+
+  // Check if todo exists and belongs to user
+  const existing = await db.select().from(todos).where(eq(todos.id, id)).get();
+  if (!existing) {
+    return c.json({ error: 'Todo not found' }, 404);
+  }
+
+  if (existing.userId !== userId) {
+    return c.json({ error: 'Unauthorized' }, 403);
+  }
+
+  logger.info('Deleting user todo', { userId, todoId: id });
+
+  await db.delete(todos).where(eq(todos.id, id));
+
+  return c.json({
+    success: true,
+    message: 'Todo deleted successfully',
+  });
+});
+
+// Delete todo (legacy endpoint)
 const deleteRoute = createRoute({
   method: 'delete',
   path: '/api/todos/{id}',
@@ -278,5 +555,8 @@ app.openapi(deleteRoute, async (c) => {
     message: 'Todo deleted successfully',
   });
 });
+
+// Merge authenticated routes into main app
+app.route('/', authenticatedApp);
 
 export default app;

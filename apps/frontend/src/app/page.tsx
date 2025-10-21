@@ -1,23 +1,34 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { apiClient } from '../lib/api-client';
+import { useRouter } from 'next/navigation';
+import { apiClient, tokenManager } from '../lib/api-client';
 import type { Todo } from '@shared/types';
 
 export default function Index() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [newTask, setNewTask] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
 
-  const fetchTodos = async () => {
+  const fetchUserTodos = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiClient.getTodos();
+      const response = await apiClient.getUserTodos();
       setTodos(response.todos);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch todos');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch todos';
+      if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+        setError('Please log in to view your todos');
+        tokenManager.removeToken();
+        setIsAuthenticated(false);
+        router.push('/login');
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -28,41 +39,70 @@ export default function Index() {
     if (!newTask.trim()) return;
 
     try {
-      setLoading(true);
       setError(null);
-      await apiClient.createTodo({ task: newTask });
+      await apiClient.createUserTodo({ task: newTask });
       setNewTask('');
-      fetchTodos();
+      await fetchUserTodos();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create todo');
-    } finally {
-      setLoading(false);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create todo';
+      if (errorMsg.includes('401')) {
+        setError('Your session has expired. Please log in again.');
+        tokenManager.removeToken();
+        router.push('/login');
+      } else {
+        setError(errorMsg);
+      }
     }
   };
 
   const handleToggleTodo = async (id: number, isDone: boolean) => {
     try {
       setError(null);
-      await apiClient.updateTodo(id, { isDone: !isDone });
-      fetchTodos();
+      await apiClient.updateUserTodo(id, { isDone: !isDone });
+      await fetchUserTodos();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update todo');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to update todo';
+      if (errorMsg.includes('401')) {
+        setError('Your session has expired. Please log in again.');
+        tokenManager.removeToken();
+        router.push('/login');
+      } else {
+        setError(errorMsg);
+      }
     }
   };
 
   const handleDeleteTodo = async (id: number) => {
     try {
       setError(null);
-      await apiClient.deleteTodo(id);
-      fetchTodos();
+      await apiClient.deleteUserTodo(id);
+      await fetchUserTodos();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete todo');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to delete todo';
+      if (errorMsg.includes('401')) {
+        setError('Your session has expired. Please log in again.');
+        tokenManager.removeToken();
+        router.push('/login');
+      } else {
+        setError(errorMsg);
+      }
     }
   };
 
   useEffect(() => {
-    fetchTodos();
-  }, []);
+    // Check if user is authenticated
+    const token = tokenManager.getToken();
+    if (!token) {
+      setError('Please log in to view your todos');
+      setIsAuthenticated(false);
+      setLoading(false);
+      router.push('/login');
+      return;
+    }
+
+    setIsAuthenticated(true);
+    fetchUserTodos();
+  }, [router]);
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-12">
