@@ -1,4 +1,6 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import { createDbClient } from '../db/client';
 import { todos } from '../db/schema';
@@ -6,81 +8,34 @@ import type { Bindings } from '../types/bindings';
 import { jwtAuth } from '../middleware/auth';
 import { createLogger } from '../middleware/logging';
 
-const app = new OpenAPIHono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: Bindings }>();
 
 // Create a separate app for authenticated routes
-const authenticatedApp = new OpenAPIHono<{ Bindings: Bindings; Variables: { userId: string } }>();
+const authenticatedApp = new Hono<{ Bindings: Bindings; Variables: { userId: string } }>();
 authenticatedApp.use('*', jwtAuth);
 
 // Schemas
 const IdParamSchema = z.object({
-  id: z.string().regex(/^\d+$/).transform(Number).openapi({
-    param: {
-      name: 'id',
-      in: 'path',
-    },
-    example: '1',
-  }),
-});
-
-const TodoSchema = z.object({
-  id: z.number().openapi({ example: 1 }),
-  task: z.string().openapi({ example: 'Complete the project' }),
-  isDone: z.boolean().openapi({ example: false }),
-  createdAt: z.string().nullable().openapi({ example: '2025-10-19T12:00:00.000Z' }),
-  updatedAt: z.string().nullable().openapi({ example: '2025-10-19T12:00:00.000Z' }),
+  id: z.string().regex(/^\d+$/).transform(Number),
 });
 
 const CreateTodoSchema = z.object({
-  task: z.string().min(1).max(500).openapi({ example: 'Complete the project' }),
-  isDone: z.boolean().default(false).openapi({ example: false }),
+  task: z.string().min(1).max(500),
+  isDone: z.boolean().default(false),
 });
 
 const UpdateTodoSchema = z.object({
-  task: z.string().min(1).max(500).optional().openapi({ example: 'Update the project' }),
-  isDone: z.boolean().optional().openapi({ example: true }),
-});
-
-const ErrorSchema = z.object({
-  error: z.string().openapi({ example: 'Not found' }),
+  task: z.string().min(1).max(500).optional(),
+  isDone: z.boolean().optional(),
 });
 
 // Define all routes first, then organize registration at the end
 // This ensures proper route priority
 
-// AUTHENTICATED ROUTES - Register these FIRST to main app to take precedence
+// AUTHENTICATED ROUTES - Define on authenticatedApp
 
 // List user's todos (authenticated)
-const listUserTodosRoute = createRoute({
-  method: 'get',
-  path: '/api/todos/my-todos',
-  tags: ['Todos'],
-  security: [{ Bearer: [] }],
-  responses: {
-    200: {
-      description: 'List of user todos',
-      content: {
-        'application/json': {
-          schema: z.object({
-            todos: z.array(TodoSchema),
-            total: z.number(),
-          }),
-        },
-      },
-    },
-    401: {
-      description: 'Unauthorized',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-// Register to authenticatedApp
-authenticatedApp.openapi(listUserTodosRoute, async (c) => {
+authenticatedApp.get('/api/todos/my-todos', async (c) => {
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
   const userId = c.get('userId');
@@ -99,30 +54,8 @@ authenticatedApp.openapi(listUserTodosRoute, async (c) => {
   }, 200);
 });
 
-// Merge authenticated routes FIRST to ensure /api/todos/my-todos takes precedence over /api/todos/:id
-app.route('/', authenticatedApp);
-
 // List all todos (legacy endpoint - kept for backward compatibility)
-const listRoute = createRoute({
-  method: 'get',
-  path: '/api/todos',
-  tags: ['Todos'],
-  responses: {
-    200: {
-      description: 'List of all todos',
-      content: {
-        'application/json': {
-          schema: z.object({
-            todos: z.array(TodoSchema),
-            total: z.number(),
-          }),
-        },
-      },
-    },
-  },
-});
-
-app.openapi(listRoute, async (c) => {
+app.get('/api/todos', async (c) => {
   const db = createDbClient(c.env.DB);
 
   const allTodos = await db.select().from(todos).all();
@@ -134,34 +67,7 @@ app.openapi(listRoute, async (c) => {
 });
 
 // Get single todo by ID
-const getRoute = createRoute({
-  method: 'get',
-  path: '/api/todos/{id}',
-  tags: ['Todos'],
-  request: {
-    params: IdParamSchema,
-  },
-  responses: {
-    200: {
-      description: 'Todo details',
-      content: {
-        'application/json': {
-          schema: TodoSchema,
-        },
-      },
-    },
-    404: {
-      description: 'Todo not found',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-app.openapi(getRoute, async (c) => {
+app.get('/api/todos/:id', zValidator('param', IdParamSchema), async (c) => {
   const { id } = c.req.valid('param');
   const db = createDbClient(c.env.DB);
 
@@ -175,54 +81,7 @@ app.openapi(getRoute, async (c) => {
 });
 
 // Create user todo (authenticated)
-const createUserTodoRoute = createRoute({
-  method: 'post',
-  path: '/api/todos/my-todos',
-  tags: ['Todos'],
-  security: [{ Bearer: [] }],
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: CreateTodoSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    201: {
-      description: 'Todo created successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-            id: z.number(),
-            todo: TodoSchema,
-          }),
-        },
-      },
-    },
-    400: {
-      description: 'Invalid request data',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-    401: {
-      description: 'Unauthorized',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-// Register to authenticatedApp
-authenticatedApp.openapi(createUserTodoRoute, async (c) => {
+authenticatedApp.post('/api/todos/my-todos', zValidator('json', CreateTodoSchema), async (c) => {
   const data = c.req.valid('json');
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
@@ -251,44 +110,7 @@ authenticatedApp.openapi(createUserTodoRoute, async (c) => {
 });
 
 // Create new todo (legacy endpoint)
-const createTodoRoute = createRoute({
-  method: 'post',
-  path: '/api/todos',
-  tags: ['Todos'],
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: CreateTodoSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    201: {
-      description: 'Todo created successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-            id: z.number(),
-            todo: TodoSchema,
-          }),
-        },
-      },
-    },
-    400: {
-      description: 'Invalid request data',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-app.openapi(createTodoRoute, async (c) => {
+app.post('/api/todos', zValidator('json', CreateTodoSchema), async (c) => {
   const data = c.req.valid('json');
   const db = createDbClient(c.env.DB);
 
@@ -306,67 +128,7 @@ app.openapi(createTodoRoute, async (c) => {
 });
 
 // Update user todo (authenticated)
-const updateUserTodoRoute = createRoute({
-  method: 'put',
-  path: '/api/todos/my-todos/{id}',
-  tags: ['Todos'],
-  security: [{ Bearer: [] }],
-  request: {
-    params: IdParamSchema,
-    body: {
-      content: {
-        'application/json': {
-          schema: UpdateTodoSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      description: 'Todo updated successfully',
-      content: {
-        'application/json': {
-          schema: TodoSchema,
-        },
-      },
-    },
-    400: {
-      description: 'Invalid request data',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-    401: {
-      description: 'Unauthorized',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-    403: {
-      description: 'Forbidden - todo belongs to another user',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-    404: {
-      description: 'Todo not found',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-// Register to authenticatedApp
-authenticatedApp.openapi(updateUserTodoRoute, async (c) => {
+authenticatedApp.put('/api/todos/my-todos/:id', zValidator('param', IdParamSchema), zValidator('json', UpdateTodoSchema), async (c) => {
   const { id } = c.req.valid('param');
   const data = c.req.valid('json');
   const db = createDbClient(c.env.DB);
@@ -401,49 +163,7 @@ authenticatedApp.openapi(updateUserTodoRoute, async (c) => {
 });
 
 // Update todo (legacy endpoint)
-const updateRoute = createRoute({
-  method: 'put',
-  path: '/api/todos/{id}',
-  tags: ['Todos'],
-  request: {
-    params: IdParamSchema,
-    body: {
-      content: {
-        'application/json': {
-          schema: UpdateTodoSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      description: 'Todo updated successfully',
-      content: {
-        'application/json': {
-          schema: TodoSchema,
-        },
-      },
-    },
-    404: {
-      description: 'Todo not found',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-    400: {
-      description: 'Invalid request data',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-app.openapi(updateRoute, async (c) => {
+app.put('/api/todos/:id', zValidator('param', IdParamSchema), zValidator('json', UpdateTodoSchema), async (c) => {
   const { id } = c.req.valid('param');
   const data = c.req.valid('json');
   const db = createDbClient(c.env.DB);
@@ -465,55 +185,7 @@ app.openapi(updateRoute, async (c) => {
 });
 
 // Delete user todo (authenticated)
-const deleteUserTodoRoute = createRoute({
-  method: 'delete',
-  path: '/api/todos/my-todos/{id}',
-  tags: ['Todos'],
-  security: [{ Bearer: [] }],
-  request: {
-    params: IdParamSchema,
-  },
-  responses: {
-    200: {
-      description: 'Todo deleted successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-            message: z.string(),
-          }),
-        },
-      },
-    },
-    403: {
-      description: 'Forbidden - todo belongs to another user',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-    404: {
-      description: 'Todo not found',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-    401: {
-      description: 'Unauthorized',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-// Register to authenticatedApp
-authenticatedApp.openapi(deleteUserTodoRoute, async (c) => {
+authenticatedApp.delete('/api/todos/my-todos/:id', zValidator('param', IdParamSchema), async (c) => {
   const { id } = c.req.valid('param');
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
@@ -540,37 +212,7 @@ authenticatedApp.openapi(deleteUserTodoRoute, async (c) => {
 });
 
 // Delete todo (legacy endpoint)
-const deleteRoute = createRoute({
-  method: 'delete',
-  path: '/api/todos/{id}',
-  tags: ['Todos'],
-  request: {
-    params: IdParamSchema,
-  },
-  responses: {
-    200: {
-      description: 'Todo deleted successfully',
-      content: {
-        'application/json': {
-          schema: z.object({
-            success: z.boolean(),
-            message: z.string(),
-          }),
-        },
-      },
-    },
-    404: {
-      description: 'Todo not found',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-app.openapi(deleteRoute, async (c) => {
+app.delete('/api/todos/:id', zValidator('param', IdParamSchema), async (c) => {
   const { id } = c.req.valid('param');
   const db = createDbClient(c.env.DB);
 
@@ -587,5 +229,8 @@ app.openapi(deleteRoute, async (c) => {
     message: 'Todo deleted successfully',
   }, 200);
 });
+
+// Merge authenticated routes LAST to ensure /api/todos/my-todos takes precedence over /api/todos/:id
+app.route('/', authenticatedApp);
 
 export default app;

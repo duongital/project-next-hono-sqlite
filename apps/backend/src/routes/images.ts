@@ -1,4 +1,6 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import type { Bindings } from '../types/bindings';
 import { createDbClient } from '../db/client';
@@ -7,96 +9,27 @@ import { createLogger } from '../middleware/logging';
 import { createDbLogger } from '../utils/db-logger';
 import { jwtAuth } from '../middleware/auth';
 
-const app = new OpenAPIHono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: Bindings }>();
 
 // Create a separate app for authenticated routes
-const authenticatedApp = new OpenAPIHono<{ Bindings: Bindings; Variables: { userId: string } }>();
+const authenticatedApp = new Hono<{ Bindings: Bindings; Variables: { userId: string } }>();
 authenticatedApp.use('*', jwtAuth);
 
 // Schemas
 const IdParamSchema = z.object({
-  id: z.string().regex(/^\d+$/).transform(Number).openapi({
-    param: {
-      name: 'id',
-      in: 'path',
-    },
-    example: '1',
-  }),
-});
-
-const ImageSchema = z.object({
-  id: z.number().openapi({ example: 1 }),
-  userId: z.string().nullable().openapi({ example: 'user_123abc' }),
-  fileName: z.string().openapi({ example: 'photo.jpg' }),
-  fileSize: z.number().openapi({ example: 1024000 }),
-  mimeType: z.string().openapi({ example: 'image/jpeg' }),
-  r2Key: z.string().openapi({ example: 'user_123/1234567890-abc123-photo.jpg' }),
-  url: z.string().openapi({ example: 'https://pub-xxxxx.r2.dev/user_123/1234567890-abc123-photo.jpg' }),
-  width: z.number().nullable().openapi({ example: 1920 }),
-  height: z.number().nullable().openapi({ example: 1080 }),
-  createdAt: z.string().nullable().openapi({ example: '2025-10-19T12:00:00.000Z' }),
-  updatedAt: z.string().nullable().openapi({ example: '2025-10-19T12:00:00.000Z' }),
+  id: z.string().regex(/^\d+$/).transform(Number),
 });
 
 const CreateImageRequestSchema = z.object({
-  fileName: z.string().openapi({ example: 'photo.jpg' }),
-  fileSize: z.number().openapi({ example: 1024000 }),
-  mimeType: z.string().openapi({ example: 'image/jpeg' }),
-  width: z.number().optional().openapi({ example: 1920 }),
-  height: z.number().optional().openapi({ example: 1080 }),
-});
-
-const ImageUploadResponseSchema = z.object({
-  image: ImageSchema,
-  uploadUrl: z.string().openapi({ example: '/api/images/1/upload' }),
-});
-
-const ImagesListResponseSchema = z.object({
-  images: z.array(ImageSchema),
-});
-
-const DeleteResponseSchema = z.object({
-  success: z.boolean().openapi({ example: true }),
-  message: z.string().openapi({ example: 'Image deleted successfully' }),
-});
-
-const UploadSuccessSchema = z.object({
-  success: z.boolean().openapi({ example: true }),
-  url: z.string().openapi({ example: 'https://pub-xxxxx.r2.dev/user_123/1234567890-abc123-photo.jpg' }),
-});
-
-const ErrorSchema = z.object({
-  error: z.string().openapi({ example: 'Not found' }),
+  fileName: z.string(),
+  fileSize: z.number(),
+  mimeType: z.string(),
+  width: z.number().optional(),
+  height: z.number().optional(),
 });
 
 // List current user's images (requires authentication)
-const listUserImagesRoute = createRoute({
-  method: 'get',
-  path: '/api/images/gallery',
-  tags: ['Images'],
-  summary: 'List current user\'s images (requires authentication)',
-  security: [{ Bearer: [] }],
-  responses: {
-    200: {
-      description: 'List of user images',
-      content: {
-        'application/json': {
-          schema: ImagesListResponseSchema,
-        },
-      },
-    },
-    401: {
-      description: 'Unauthorized',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-authenticatedApp.openapi(listUserImagesRoute, async (c) => {
+authenticatedApp.get('/api/images/gallery', async (c) => {
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
   const userId = c.get('userId');
@@ -112,28 +45,8 @@ authenticatedApp.openapi(listUserImagesRoute, async (c) => {
   return c.json({ images: userImages }, 200);
 });
 
-// Merge authenticated routes FIRST to ensure /api/images/gallery takes precedence over /api/images/{id}
-app.route('/', authenticatedApp);
-
 // List all images (legacy endpoint - kept for backward compatibility)
-const listImagesRoute = createRoute({
-  method: 'get',
-  path: '/api/images',
-  tags: ['Images'],
-  summary: 'List all images (legacy - use /api/images/gallery for authenticated user images)',
-  responses: {
-    200: {
-      description: 'List of images',
-      content: {
-        'application/json': {
-          schema: ImagesListResponseSchema,
-        },
-      },
-    },
-  },
-});
-
-app.openapi(listImagesRoute, async (c) => {
+app.get('/api/images', async (c) => {
   const db = createDbClient(c.env.DB);
   const allImages = await db
     .select()
@@ -144,42 +57,7 @@ app.openapi(listImagesRoute, async (c) => {
 });
 
 // Create image metadata and get upload URL (authenticated - for user's gallery)
-const createImageRoute = createRoute({
-  method: 'post',
-  path: '/api/images/gallery',
-  tags: ['Images'],
-  summary: 'Create image metadata and get upload URL (authenticated user only)',
-  security: [{ Bearer: [] }],
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: CreateImageRequestSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    201: {
-      description: 'Image metadata created, upload URL provided',
-      content: {
-        'application/json': {
-          schema: ImageUploadResponseSchema,
-        },
-      },
-    },
-    401: {
-      description: 'Unauthorized',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-authenticatedApp.openapi(createImageRoute, async (c) => {
+authenticatedApp.post('/api/images/gallery', zValidator('json', CreateImageRequestSchema), async (c) => {
   const body = c.req.valid('json');
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
@@ -238,50 +116,7 @@ authenticatedApp.openapi(createImageRoute, async (c) => {
 });
 
 // Upload image file to R2
-const uploadImageRoute = createRoute({
-  method: 'put',
-  path: '/api/images/{id}/upload',
-  tags: ['Images'],
-  summary: 'Upload image file to R2',
-  request: {
-    params: IdParamSchema,
-    body: {
-      content: {
-        'application/octet-stream': {
-          schema: z.any(),
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      description: 'Image uploaded successfully',
-      content: {
-        'application/json': {
-          schema: UploadSuccessSchema,
-        },
-      },
-    },
-    404: {
-      description: 'Image not found',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-    500: {
-      description: 'R2 storage not configured',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-app.openapi(uploadImageRoute, async (c) => {
+app.put('/api/images/:id/upload', zValidator('param', IdParamSchema), async (c) => {
   const logger = createLogger(c);
   const dbLogger = createDbLogger(logger);
 
@@ -356,35 +191,7 @@ app.openapi(uploadImageRoute, async (c) => {
 });
 
 // Delete image
-const deleteImageRoute = createRoute({
-  method: 'delete',
-  path: '/api/images/{id}',
-  tags: ['Images'],
-  summary: 'Delete an image',
-  request: {
-    params: IdParamSchema,
-  },
-  responses: {
-    200: {
-      description: 'Image deleted successfully',
-      content: {
-        'application/json': {
-          schema: DeleteResponseSchema,
-        },
-      },
-    },
-    404: {
-      description: 'Image not found',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
-  },
-});
-
-app.openapi(deleteImageRoute, async (c) => {
+app.delete('/api/images/:id', zValidator('param', IdParamSchema), async (c) => {
   const { id } = c.req.valid('param');
   const db = createDbClient(c.env.DB);
 
@@ -415,5 +222,8 @@ app.openapi(deleteImageRoute, async (c) => {
     200
   );
 });
+
+// Merge authenticated routes LAST to ensure /api/images/gallery takes precedence over /api/images/{id}
+app.route('/', authenticatedApp);
 
 export default app;
