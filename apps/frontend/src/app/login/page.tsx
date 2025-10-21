@@ -46,6 +46,9 @@ export default function LoginPage() {
       // Store token
       tokenManager.setToken(response.token);
 
+      // Dispatch custom event to notify other components of token change
+      window.dispatchEvent(new Event('tokenChanged'));
+
       // Redirect to home
       router.push('/');
     } catch (err) {

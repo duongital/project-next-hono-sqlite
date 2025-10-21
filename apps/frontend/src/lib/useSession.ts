@@ -10,6 +10,28 @@ export function useSession() {
     const savedToken = tokenManager.getToken();
     setToken(savedToken);
     setIsLoading(false);
+
+    // Listen for storage changes (token updates from other tabs)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'token' || e.key === null) {
+        const newToken = tokenManager.getToken();
+        setToken(newToken);
+      }
+    };
+
+    // Listen for custom token change events (same-tab updates)
+    const handleTokenChanged = () => {
+      const newToken = tokenManager.getToken();
+      setToken(newToken);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('tokenChanged', handleTokenChanged);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('tokenChanged', handleTokenChanged);
+    };
   }, []);
 
   const logout = () => {
