@@ -29,13 +29,10 @@ const UpdateTodoSchema = z.object({
   isDone: z.boolean().optional(),
 });
 
-// Define all routes first, then organize registration at the end
-// This ensures proper route priority
-
-// AUTHENTICATED ROUTES - Define on authenticatedApp
+// AUTHENTICATED ROUTES (will be registered first to take precedence)
 
 // List user's todos (authenticated)
-authenticatedApp.get('/api/todos/my-todos', async (c) => {
+authenticatedApp.get('/my-todos', async (c) => {
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
   const userId = c.get('userId');
@@ -54,34 +51,8 @@ authenticatedApp.get('/api/todos/my-todos', async (c) => {
   }, 200);
 });
 
-// List all todos (legacy endpoint - kept for backward compatibility)
-app.get('/api/todos', async (c) => {
-  const db = createDbClient(c.env.DB);
-
-  const allTodos = await db.select().from(todos).all();
-
-  return c.json({
-    todos: allTodos,
-    total: allTodos.length,
-  });
-});
-
-// Get single todo by ID
-app.get('/api/todos/:id', zValidator('param', IdParamSchema), async (c) => {
-  const { id } = c.req.valid('param');
-  const db = createDbClient(c.env.DB);
-
-  const todo = await db.select().from(todos).where(eq(todos.id, id)).get();
-
-  if (!todo) {
-    return c.json({ error: 'Todo not found' }, 404);
-  }
-
-  return c.json(todo, 200);
-});
-
 // Create user todo (authenticated)
-authenticatedApp.post('/api/todos/my-todos', zValidator('json', CreateTodoSchema), async (c) => {
+authenticatedApp.post('/my-todos', zValidator('json', CreateTodoSchema), async (c) => {
   const data = c.req.valid('json');
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
@@ -109,26 +80,8 @@ authenticatedApp.post('/api/todos/my-todos', zValidator('json', CreateTodoSchema
   );
 });
 
-// Create new todo (legacy endpoint)
-app.post('/api/todos', zValidator('json', CreateTodoSchema), async (c) => {
-  const data = c.req.valid('json');
-  const db = createDbClient(c.env.DB);
-
-  const result = await db.insert(todos).values(data).returning();
-  const newTodo = result[0];
-
-  return c.json(
-    {
-      success: true,
-      id: newTodo.id,
-      todo: newTodo,
-    },
-    201
-  );
-});
-
 // Update user todo (authenticated)
-authenticatedApp.put('/api/todos/my-todos/:id', zValidator('param', IdParamSchema), zValidator('json', UpdateTodoSchema), async (c) => {
+authenticatedApp.put('/my-todos/:id', zValidator('param', IdParamSchema), zValidator('json', UpdateTodoSchema), async (c) => {
   const { id } = c.req.valid('param');
   const data = c.req.valid('json');
   const db = createDbClient(c.env.DB);
@@ -162,30 +115,8 @@ authenticatedApp.put('/api/todos/my-todos/:id', zValidator('param', IdParamSchem
   return c.json(result[0], 200);
 });
 
-// Update todo (legacy endpoint)
-app.put('/api/todos/:id', zValidator('param', IdParamSchema), zValidator('json', UpdateTodoSchema), async (c) => {
-  const { id } = c.req.valid('param');
-  const data = c.req.valid('json');
-  const db = createDbClient(c.env.DB);
-
-  // Check if todo exists
-  const existing = await db.select().from(todos).where(eq(todos.id, id)).get();
-  if (!existing) {
-    return c.json({ error: 'Todo not found' }, 404);
-  }
-
-  // Update the todo
-  const result = await db
-    .update(todos)
-    .set({ ...data, updatedAt: new Date().toISOString() })
-    .where(eq(todos.id, id))
-    .returning();
-
-  return c.json(result[0], 200);
-});
-
 // Delete user todo (authenticated)
-authenticatedApp.delete('/api/todos/my-todos/:id', zValidator('param', IdParamSchema), async (c) => {
+authenticatedApp.delete('/my-todos/:id', zValidator('param', IdParamSchema), async (c) => {
   const { id } = c.req.valid('param');
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
@@ -211,6 +142,77 @@ authenticatedApp.delete('/api/todos/my-todos/:id', zValidator('param', IdParamSc
   }, 200);
 });
 
+// Register authenticated routes FIRST to ensure they take precedence
+app.route('/api/todos', authenticatedApp);
+
+// PUBLIC ROUTES (registered after authenticated routes)
+
+// List all todos (legacy endpoint - kept for backward compatibility)
+app.get('/api/todos', async (c) => {
+  const db = createDbClient(c.env.DB);
+
+  const allTodos = await db.select().from(todos).all();
+
+  return c.json({
+    todos: allTodos,
+    total: allTodos.length,
+  });
+});
+
+// Get single todo by ID
+app.get('/api/todos/:id', zValidator('param', IdParamSchema), async (c) => {
+  const { id } = c.req.valid('param');
+  const db = createDbClient(c.env.DB);
+
+  const todo = await db.select().from(todos).where(eq(todos.id, id)).get();
+
+  if (!todo) {
+    return c.json({ error: 'Todo not found' }, 404);
+  }
+
+  return c.json(todo, 200);
+});
+
+// Create new todo (legacy endpoint)
+app.post('/api/todos', zValidator('json', CreateTodoSchema), async (c) => {
+  const data = c.req.valid('json');
+  const db = createDbClient(c.env.DB);
+
+  const result = await db.insert(todos).values(data).returning();
+  const newTodo = result[0];
+
+  return c.json(
+    {
+      success: true,
+      id: newTodo.id,
+      todo: newTodo,
+    },
+    201
+  );
+});
+
+// Update todo (legacy endpoint)
+app.put('/api/todos/:id', zValidator('param', IdParamSchema), zValidator('json', UpdateTodoSchema), async (c) => {
+  const { id } = c.req.valid('param');
+  const data = c.req.valid('json');
+  const db = createDbClient(c.env.DB);
+
+  // Check if todo exists
+  const existing = await db.select().from(todos).where(eq(todos.id, id)).get();
+  if (!existing) {
+    return c.json({ error: 'Todo not found' }, 404);
+  }
+
+  // Update the todo
+  const result = await db
+    .update(todos)
+    .set({ ...data, updatedAt: new Date().toISOString() })
+    .where(eq(todos.id, id))
+    .returning();
+
+  return c.json(result[0], 200);
+});
+
 // Delete todo (legacy endpoint)
 app.delete('/api/todos/:id', zValidator('param', IdParamSchema), async (c) => {
   const { id } = c.req.valid('param');
@@ -229,8 +231,5 @@ app.delete('/api/todos/:id', zValidator('param', IdParamSchema), async (c) => {
     message: 'Todo deleted successfully',
   }, 200);
 });
-
-// Merge authenticated routes LAST to ensure /api/todos/my-todos takes precedence over /api/todos/:id
-app.route('/', authenticatedApp);
 
 export default app;

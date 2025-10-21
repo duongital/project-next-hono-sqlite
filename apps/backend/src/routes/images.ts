@@ -28,8 +28,10 @@ const CreateImageRequestSchema = z.object({
   height: z.number().optional(),
 });
 
+// AUTHENTICATED ROUTES (will be registered first to take precedence)
+
 // List current user's images (requires authentication)
-authenticatedApp.get('/api/images/gallery', async (c) => {
+authenticatedApp.get('/gallery', async (c) => {
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
   const userId = c.get('userId');
@@ -45,19 +47,8 @@ authenticatedApp.get('/api/images/gallery', async (c) => {
   return c.json({ images: userImages }, 200);
 });
 
-// List all images (legacy endpoint - kept for backward compatibility)
-app.get('/api/images', async (c) => {
-  const db = createDbClient(c.env.DB);
-  const allImages = await db
-    .select()
-    .from(images)
-    .orderBy(images.createdAt);
-
-  return c.json({ images: allImages }, 200);
-});
-
 // Create image metadata and get upload URL (authenticated - for user's gallery)
-authenticatedApp.post('/api/images/gallery', zValidator('json', CreateImageRequestSchema), async (c) => {
+authenticatedApp.post('/gallery', zValidator('json', CreateImageRequestSchema), async (c) => {
   const body = c.req.valid('json');
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
@@ -109,10 +100,26 @@ authenticatedApp.post('/api/images/gallery', zValidator('json', CreateImageReque
   return c.json(
     {
       image,
-      uploadUrl: `/api/images/${image.id}/upload`,
+      uploadUrl: `/:id/upload`,
     },
     201
   );
+});
+
+// Register authenticated routes FIRST to ensure they take precedence
+app.route('/api/images', authenticatedApp);
+
+// PUBLIC ROUTES (registered after authenticated routes)
+
+// List all images (legacy endpoint - kept for backward compatibility)
+app.get('/api/images', async (c) => {
+  const db = createDbClient(c.env.DB);
+  const allImages = await db
+    .select()
+    .from(images)
+    .orderBy(images.createdAt);
+
+  return c.json({ images: allImages }, 200);
 });
 
 // Upload image file to R2
@@ -222,8 +229,5 @@ app.delete('/api/images/:id', zValidator('param', IdParamSchema), async (c) => {
     200
   );
 });
-
-// Merge authenticated routes LAST to ensure /api/images/gallery takes precedence over /api/images/{id}
-app.route('/', authenticatedApp);
 
 export default app;
