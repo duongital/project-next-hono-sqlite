@@ -26,7 +26,7 @@ const IdParamSchema = z.object({
 
 const ImageSchema = z.object({
   id: z.number().openapi({ example: 1 }),
-  userId: z.string().openapi({ example: 'user_123abc' }),
+  userId: z.string().nullable().openapi({ example: 'user_123abc' }),
   fileName: z.string().openapi({ example: 'photo.jpg' }),
   fileSize: z.number().openapi({ example: 1024000 }),
   mimeType: z.string().openapi({ example: 'image/jpeg' }),
@@ -75,6 +75,7 @@ const listUserImagesRoute = createRoute({
   path: '/api/images/gallery',
   tags: ['Images'],
   summary: 'List current user\'s images (requires authentication)',
+  security: [{ Bearer: [] }],
   responses: {
     200: {
       description: 'List of user images',
@@ -145,6 +146,7 @@ const createImageRoute = createRoute({
   path: '/api/images/gallery',
   tags: ['Images'],
   summary: 'Create image metadata and get upload URL (authenticated user only)',
+  security: [{ Bearer: [] }],
   request: {
     body: {
       content: {
