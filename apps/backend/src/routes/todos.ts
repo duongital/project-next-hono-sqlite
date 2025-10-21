@@ -1,14 +1,10 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { createDbClient } from '../db/client';
 import { todos } from '../db/schema';
 import type { Bindings } from '../types/bindings';
-import { jwtAuth, type AuthContext } from '../middleware/auth';
 
-const app = new OpenAPIHono<{ Bindings: Bindings; Variables: AuthContext }>();
-
-// Apply authentication middleware to all routes
-app.use('/*', jwtAuth);
+const app = new OpenAPIHono<{ Bindings: Bindings }>();
 
 // Schemas
 const IdParamSchema = z.object({
@@ -25,7 +21,6 @@ const TodoSchema = z.object({
   id: z.number().openapi({ example: 1 }),
   task: z.string().openapi({ example: 'Complete the project' }),
   isDone: z.boolean().openapi({ example: false }),
-  userId: z.string().openapi({ example: 'user_123abc' }),
   createdAt: z.string().nullable().openapi({ example: '2025-10-19T12:00:00.000Z' }),
   updatedAt: z.string().nullable().openapi({ example: '2025-10-19T12:00:00.000Z' }),
 });
@@ -65,15 +60,13 @@ const listRoute = createRoute({
 });
 
 app.openapi(listRoute, async (c) => {
-  const userId = c.get('userId');
   const db = createDbClient(c.env.DB);
 
-  // Only return todos for the authenticated user
-  const userTodos = await db.select().from(todos).where(eq(todos.userId, userId)).all();
+  const allTodos = await db.select().from(todos).all();
 
   return c.json({
-    todos: userTodos,
-    total: userTodos.length,
+    todos: allTodos,
+    total: allTodos.length,
   });
 });
 
@@ -107,11 +100,9 @@ const getRoute = createRoute({
 
 app.openapi(getRoute, async (c) => {
   const { id } = c.req.valid('param');
-  const userId = c.get('userId');
   const db = createDbClient(c.env.DB);
 
-  // Only allow access to user's own todos
-  const todo = await db.select().from(todos).where(and(eq(todos.id, id), eq(todos.userId, userId))).get();
+  const todo = await db.select().from(todos).where(eq(todos.id, id)).get();
 
   if (!todo) {
     return c.json({ error: 'Todo not found' }, 404);
@@ -160,11 +151,9 @@ const createTodoRoute = createRoute({
 
 app.openapi(createTodoRoute, async (c) => {
   const data = c.req.valid('json');
-  const userId = c.get('userId');
   const db = createDbClient(c.env.DB);
 
-  // Automatically assign userId from authenticated user
-  const result = await db.insert(todos).values({ ...data, userId }).returning();
+  const result = await db.insert(todos).values(data).returning();
   const newTodo = result[0];
 
   return c.json(
@@ -223,11 +212,10 @@ const updateRoute = createRoute({
 app.openapi(updateRoute, async (c) => {
   const { id } = c.req.valid('param');
   const data = c.req.valid('json');
-  const userId = c.get('userId');
   const db = createDbClient(c.env.DB);
 
-  // Check if todo exists and belongs to user
-  const existing = await db.select().from(todos).where(and(eq(todos.id, id), eq(todos.userId, userId))).get();
+  // Check if todo exists
+  const existing = await db.select().from(todos).where(eq(todos.id, id)).get();
   if (!existing) {
     return c.json({ error: 'Todo not found' }, 404);
   }
@@ -236,7 +224,7 @@ app.openapi(updateRoute, async (c) => {
   const result = await db
     .update(todos)
     .set({ ...data, updatedAt: new Date().toISOString() })
-    .where(and(eq(todos.id, id), eq(todos.userId, userId)))
+    .where(eq(todos.id, id))
     .returning();
 
   return c.json(result[0]);
@@ -275,16 +263,15 @@ const deleteRoute = createRoute({
 
 app.openapi(deleteRoute, async (c) => {
   const { id } = c.req.valid('param');
-  const userId = c.get('userId');
   const db = createDbClient(c.env.DB);
 
-  // Check if todo exists and belongs to user
-  const existing = await db.select().from(todos).where(and(eq(todos.id, id), eq(todos.userId, userId))).get();
+  // Check if todo exists
+  const existing = await db.select().from(todos).where(eq(todos.id, id)).get();
   if (!existing) {
     return c.json({ error: 'Todo not found' }, 404);
   }
 
-  await db.delete(todos).where(and(eq(todos.id, id), eq(todos.userId, userId)));
+  await db.delete(todos).where(eq(todos.id, id));
 
   return c.json({
     success: true,

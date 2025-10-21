@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useSession } from '../../lib/auth-client';
 import { apiClient } from '../../lib/api-client';
 import type { Image } from '@shared/types';
 
 export default function Gallery() {
-  const { data: session, isPending } = useSession();
   const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -103,39 +101,8 @@ export default function Gallery() {
   };
 
   useEffect(() => {
-    if (session?.user) {
-      fetchImages();
-    }
-  }, [session]);
-
-  if (isPending) {
-    return (
-      <div className="container mx-auto max-w-6xl px-4 py-12 text-center">
-        <p className="text-slate-600">Loading...</p>
-      </div>
-    );
-  }
-
-  if (!session?.user) {
-    return (
-      <div className="container mx-auto max-w-6xl px-4 py-12">
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-bold text-slate-800 mb-4">
-            Welcome to Gallery
-          </h2>
-          <p className="text-slate-600 mb-6">
-            Please sign in to view your images
-          </p>
-          <a
-            href="/login"
-            className="inline-block px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium rounded-lg transition-all shadow-md hover:shadow-lg"
-          >
-            Sign In
-          </a>
-        </div>
-      </div>
-    );
-  }
+    fetchImages();
+  }, []);
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-12">

@@ -3,7 +3,6 @@ import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import type { Bindings } from './types/bindings';
 import { requestLogger, errorLogger } from './middleware/logging';
-import { createAuth } from './lib/auth';
 import healthRoutes from './routes/health';
 import fruitsRoutes from './routes/fruits';
 import todosRoutes from './routes/todos';
@@ -38,12 +37,6 @@ app.use('/*', cors({
   },
   credentials: true,
 }));
-
-// Better Auth routes (handles /api/auth/*)
-app.all('/api/auth/*', async (c) => {
-  const auth = createAuth(c.env.DB, c.env);
-  return auth.handler(c.req.raw);
-});
 
 // Register routes
 app.route('/', healthRoutes);

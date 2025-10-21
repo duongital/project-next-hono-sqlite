@@ -3,14 +3,10 @@ import { eq } from 'drizzle-orm';
 import type { Bindings } from '../types/bindings';
 import { createDbClient } from '../db/client';
 import { images } from '../db/schema';
-import { jwtAuth, type AuthContext } from '../middleware/auth';
 import { createLogger } from '../middleware/logging';
 import { createDbLogger } from '../utils/db-logger';
 
-const app = new OpenAPIHono<{ Bindings: Bindings; Variables: AuthContext }>();
-
-// Apply authentication middleware to all routes
-app.use('/*', jwtAuth);
+const app = new OpenAPIHono<{ Bindings: Bindings }>();
 
 // Schemas
 const IdParamSchema = z.object({
@@ -68,13 +64,12 @@ const ErrorSchema = z.object({
   error: z.string().openapi({ example: 'Not found' }),
 });
 
-// List all images for the authenticated user
+// List all images
 const listImagesRoute = createRoute({
   method: 'get',
   path: '/api/images',
   tags: ['Images'],
-  summary: 'List all images for the authenticated user',
-  security: [{ Bearer: [] }],
+  summary: 'List all images',
   responses: {
     200: {
       description: 'List of images',
@@ -84,37 +79,25 @@ const listImagesRoute = createRoute({
         },
       },
     },
-    401: {
-      description: 'Unauthorized',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
   },
 });
 
 app.openapi(listImagesRoute, async (c) => {
-  const userId = c.get('userId');
-
   const db = createDbClient(c.env.DB);
-  const userImages = await db
+  const allImages = await db
     .select()
     .from(images)
-    .where(eq(images.userId, userId))
     .orderBy(images.createdAt);
 
-  return c.json({ images: userImages }, 200);
+  return c.json({ images: allImages }, 200);
 });
 
-// Create image metadata and get presigned upload URL
+// Create image metadata and get upload URL
 const createImageRoute = createRoute({
   method: 'post',
   path: '/api/images',
   tags: ['Images'],
   summary: 'Create image metadata and get upload URL',
-  security: [{ Bearer: [] }],
   request: {
     body: {
       content: {
@@ -133,19 +116,10 @@ const createImageRoute = createRoute({
         },
       },
     },
-    401: {
-      description: 'Unauthorized',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
   },
 });
 
 app.openapi(createImageRoute, async (c) => {
-  const userId = c.get('userId');
   const body = c.req.valid('json');
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
@@ -157,20 +131,20 @@ app.openapi(createImageRoute, async (c) => {
     mimeType: body.mimeType,
   });
 
-  // Generate unique R2 key
+  // Generate unique R2 key (without userId prefix)
   const timestamp = Date.now();
   const randomStr = Math.random().toString(36).substring(7);
-  const r2Key = `${userId}/${timestamp}-${randomStr}-${body.fileName}`;
+  const r2Key = `${timestamp}-${randomStr}-${body.fileName}`;
 
   // Construct public URL
   const url = `${c.env.R2_PUBLIC_URL}/${r2Key}`;
 
-  // Insert metadata into database
+  // Insert metadata into database (userId will be null)
   const result = await dbLogger.logQuery('INSERT', 'images', async () =>
     db
       .insert(images)
       .values({
-        userId,
+        userId: null,
         fileName: body.fileName,
         fileSize: body.fileSize,
         mimeType: body.mimeType,
@@ -206,7 +180,6 @@ const uploadImageRoute = createRoute({
   path: '/api/images/{id}/upload',
   tags: ['Images'],
   summary: 'Upload image file to R2',
-  security: [{ Bearer: [] }],
   request: {
     params: IdParamSchema,
     body: {
@@ -223,14 +196,6 @@ const uploadImageRoute = createRoute({
       content: {
         'application/json': {
           schema: UploadSuccessSchema,
-        },
-      },
-    },
-    401: {
-      description: 'Unauthorized',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
         },
       },
     },
@@ -258,7 +223,6 @@ app.openapi(uploadImageRoute, async (c) => {
   const dbLogger = createDbLogger(logger);
 
   try {
-    const userId = c.get('userId');
     const { id } = c.req.valid('param');
     const db = createDbClient(c.env.DB);
 
@@ -288,15 +252,6 @@ app.openapi(uploadImageRoute, async (c) => {
     }
 
     const image = imageResults[0];
-
-    // Verify ownership
-    if (image.userId !== userId) {
-      logger.warn('Unauthorized image access attempt', {
-        imageId: id,
-        imageOwnerId: image.userId,
-      });
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
 
     // Get the file data from request body
     const fileData = await c.req.arrayBuffer();
@@ -343,7 +298,6 @@ const deleteImageRoute = createRoute({
   path: '/api/images/{id}',
   tags: ['Images'],
   summary: 'Delete an image',
-  security: [{ Bearer: [] }],
   request: {
     params: IdParamSchema,
   },
@@ -353,14 +307,6 @@ const deleteImageRoute = createRoute({
       content: {
         'application/json': {
           schema: DeleteResponseSchema,
-        },
-      },
-    },
-    401: {
-      description: 'Unauthorized',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
         },
       },
     },
@@ -376,7 +322,6 @@ const deleteImageRoute = createRoute({
 });
 
 app.openapi(deleteImageRoute, async (c) => {
-  const userId = c.get('userId');
   const { id } = c.req.valid('param');
   const db = createDbClient(c.env.DB);
 
@@ -392,11 +337,6 @@ app.openapi(deleteImageRoute, async (c) => {
   }
 
   const image = imageResults[0];
-
-  // Verify ownership
-  if (image.userId !== userId) {
-    return c.json({ error: 'Unauthorized' }, 401);
-  }
 
   // Delete from R2
   await c.env.IMAGES_BUCKET.delete(image.r2Key);
