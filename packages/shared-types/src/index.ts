@@ -5,6 +5,35 @@ export interface ApiResponse<T = unknown> {
   message?: string;
 }
 
+// Auth Types
+export interface User {
+  id: string;
+  email: string;
+  emailVerified: boolean;
+  name: string | null;
+}
+
+export interface SendOTPRequest {
+  email: string;
+}
+
+export interface SendOTPResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface VerifyOTPRequest {
+  email: string;
+  code: string;
+}
+
+export interface VerifyOTPResponse {
+  success: boolean;
+  token?: string;
+  user?: User;
+  message?: string;
+}
+
 // Item Types
 export interface Item {
   id: number;
@@ -77,29 +106,6 @@ export interface DeleteFruitResponse {
   message: string;
 }
 
-// User Types (Better Auth)
-export interface User {
-  id: string;
-  email: string;
-  emailVerified: boolean;
-  name: string | null;
-  image: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AuthSession {
-  id: string;
-  userId: string;
-  expiresAt: string;
-  token: string;
-}
-
-export interface AuthResponse {
-  user: User;
-  session: AuthSession;
-}
-
 export interface ErrorResponse {
   error: string;
   message?: string;
@@ -110,7 +116,6 @@ export interface Todo {
   id: number;
   task: string;
   isDone: boolean;
-  userId: string;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -144,7 +149,6 @@ export interface DeleteTodoResponse {
 // Image Types
 export interface Image {
   id: number;
-  userId: string;
   fileName: string;
   fileSize: number;
   mimeType: string;

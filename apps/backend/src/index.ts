@@ -3,6 +3,7 @@ import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import type { Bindings } from './types/bindings';
 import { requestLogger, errorLogger } from './middleware/logging';
+import authRoutes from './routes/auth';
 import healthRoutes from './routes/health';
 import fruitsRoutes from './routes/fruits';
 import todosRoutes from './routes/todos';
@@ -39,6 +40,7 @@ app.use('/*', cors({
 }));
 
 // Register routes
+app.route('/', authRoutes);
 app.route('/', healthRoutes);
 app.route('/', fruitsRoutes);
 app.route('/', todosRoutes);
@@ -53,6 +55,7 @@ app.doc('/docs/openapi.json', {
     description: 'A CRUD API built with Hono, Drizzle ORM, and Cloudflare D1',
   },
   tags: [
+    { name: 'Auth', description: 'Authentication endpoints' },
     { name: 'Health', description: 'Health check endpoints' },
     { name: 'Fruits', description: 'Fruits CRUD operations' },
     { name: 'Todos', description: 'Todos CRUD operations' },

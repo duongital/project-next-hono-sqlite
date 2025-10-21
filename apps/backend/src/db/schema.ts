@@ -32,20 +32,38 @@ export const categories = sqliteTable('categories', {
   name: text('name').notNull(),
 });
 
-// Users table (Clerk sync)
+// Users table - Scalable design for multiple auth methods
 export const users = sqliteTable('users', {
-  id: text('id').primaryKey(), // Clerk user ID (e.g., user_xxx)
+  id: text('id').primaryKey(), // UUID v4
   email: text('email').notNull().unique(),
-  firstName: text('first_name'),
-  lastName: text('last_name'),
-  imageUrl: text('image_url'),
+  emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
+  name: text('name'),
+  avatar: text('avatar'), // For profile pictures / social login profile pics
+  // Scalable fields for future auth methods
+  provider: text('provider').default('email'), // 'email', 'google', 'github', 'passkey', etc.
+  providerAccountId: text('provider_account_id'), // ID from social provider
   createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// OTP table for email verification
+export const otp = sqliteTable('otp', {
+  id: text('id').primaryKey(), // UUID v4
+  userId: text('user_id'),
+  email: text('email').notNull(), // Store email in case user doesn't exist yet
+  code: text('code').notNull(), // 6-digit OTP
+  expiresAt: integer('expires_at').notNull(), // Unix timestamp
+  isUsed: integer('is_used', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
 // Export user types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+
+// Export OTP types
+export type OTP = typeof otp.$inferSelect;
+export type NewOTP = typeof otp.$inferInsert;
 
 // Todos table
 export const todos = sqliteTable('todos', {

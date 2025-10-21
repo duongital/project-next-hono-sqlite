@@ -1,4 +1,8 @@
 import type {
+  SendOTPRequest,
+  SendOTPResponse,
+  VerifyOTPRequest,
+  VerifyOTPResponse,
   GetItemsResponse,
   CreateItemRequest,
   CreateItemResponse,
@@ -26,23 +30,21 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
 
-// Helper to get JWT token from Better Auth session stored in cookies/localStorage
-async function getAuthToken(): Promise<string | null> {
-  try {
-    // Better Auth stores the session in cookies by default
-    // We'll make a request to get the session which includes the token
-    const response = await fetch(`${API_URL}/api/auth/session`, {
-      credentials: 'include',
-    });
-
-    if (!response.ok) return null;
-
-    const session = await response.json();
-    return session?.token || null;
-  } catch {
-    return null;
-  }
-}
+// Helper to manage JWT token in localStorage
+export const tokenManager = {
+  getToken: (): string | null => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('token');
+  },
+  setToken: (token: string) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('token', token);
+  },
+  removeToken: () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('token');
+  },
+};
 
 export class ApiClient {
   private baseUrl: string;
@@ -53,8 +55,7 @@ export class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options?: RequestInit,
-    requiresAuth: boolean = false
+    options?: RequestInit
   ): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -68,18 +69,9 @@ export class ApiClient {
       });
     }
 
-    // Add auth token if required
-    if (requiresAuth) {
-      const token = await getAuthToken();
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-    }
-
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
       headers,
-      credentials: 'include', // Important for cookies
     });
 
     if (!response.ok) {
@@ -87,6 +79,21 @@ export class ApiClient {
     }
 
     return response.json();
+  }
+
+  // Auth methods
+  async sendOTP(data: SendOTPRequest): Promise<SendOTPResponse> {
+    return this.request<SendOTPResponse>('/api/auth/send-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async verifyOTP(data: VerifyOTPRequest): Promise<VerifyOTPResponse> {
+    return this.request<VerifyOTPResponse>('/api/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   async healthCheck(): Promise<HealthCheckResponse> {
@@ -139,13 +146,13 @@ export class ApiClient {
     });
   }
 
-  // Todos API methods (requires authentication)
+  // Todos API methods
   async getTodos(): Promise<GetTodosResponse> {
-    return this.request<GetTodosResponse>('/api/todos', {}, true);
+    return this.request<GetTodosResponse>('/api/todos');
   }
 
   async getTodo(id: number): Promise<Todo> {
-    return this.request<Todo>(`/api/todos/${id}`, {}, true);
+    return this.request<Todo>(`/api/todos/${id}`);
   }
 
   async createTodo(data: CreateTodoRequest): Promise<CreateTodoResponse> {
@@ -154,8 +161,7 @@ export class ApiClient {
       {
         method: 'POST',
         body: JSON.stringify(data),
-      },
-      true
+      }
     );
   }
 
@@ -165,8 +171,7 @@ export class ApiClient {
       {
         method: 'PUT',
         body: JSON.stringify(data),
-      },
-      true
+      }
     );
   }
 
@@ -175,14 +180,13 @@ export class ApiClient {
       `/api/todos/${id}`,
       {
         method: 'DELETE',
-      },
-      true
+      }
     );
   }
 
-  // Images API methods (requires authentication)
+  // Images API methods
   async getImages(): Promise<GetImagesResponse> {
-    return this.request<GetImagesResponse>('/api/images', {}, true);
+    return this.request<GetImagesResponse>('/api/images');
   }
 
   async createImage(data: CreateImageRequest): Promise<CreateImageResponse> {
@@ -191,23 +195,19 @@ export class ApiClient {
       {
         method: 'POST',
         body: JSON.stringify(data),
-      },
-      true
+      }
     );
   }
 
   async uploadImage(imageId: number, file: File): Promise<ImageUploadResponse> {
     const arrayBuffer = await file.arrayBuffer();
-    const token = await getAuthToken();
 
     const response = await fetch(`${this.baseUrl}/api/images/${imageId}/upload`, {
       method: 'PUT',
       headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
         'Content-Type': 'application/octet-stream',
       },
       body: arrayBuffer,
-      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -222,8 +222,7 @@ export class ApiClient {
       `/api/images/${id}`,
       {
         method: 'DELETE',
-      },
-      true
+      }
     );
   }
 }
