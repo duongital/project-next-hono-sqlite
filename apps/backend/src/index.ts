@@ -61,6 +61,10 @@ app.get('/docs/openapi.json', (c) => {
         url: 'http://localhost:8787',
         description: 'Local development server',
       },
+      {
+        url: 'https://backend.duong-a07.workers.dev',
+        description: 'Production server',
+      },
     ],
   });
 

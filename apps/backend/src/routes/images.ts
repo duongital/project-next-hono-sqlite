@@ -112,6 +112,9 @@ authenticatedApp.openapi(listUserImagesRoute, async (c) => {
   return c.json({ images: userImages }, 200);
 });
 
+// Merge authenticated routes FIRST to ensure /api/images/gallery takes precedence over /api/images/{id}
+app.route('/', authenticatedApp);
+
 // List all images (legacy endpoint - kept for backward compatibility)
 const listImagesRoute = createRoute({
   method: 'get',
@@ -412,8 +415,5 @@ app.openapi(deleteImageRoute, async (c) => {
     200
   );
 });
-
-// Merge authenticated routes into main app
-app.route('/', authenticatedApp);
 
 export default app;

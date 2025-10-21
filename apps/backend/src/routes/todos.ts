@@ -99,6 +99,9 @@ authenticatedApp.openapi(listUserTodosRoute, async (c) => {
   }, 200);
 });
 
+// Merge authenticated routes FIRST to ensure /api/todos/my-todos takes precedence over /api/todos/:id
+app.route('/', authenticatedApp);
+
 // List all todos (legacy endpoint - kept for backward compatibility)
 const listRoute = createRoute({
   method: 'get',
@@ -584,8 +587,5 @@ app.openapi(deleteRoute, async (c) => {
     message: 'Todo deleted successfully',
   }, 200);
 });
-
-// Merge authenticated routes into main app
-app.route('/', authenticatedApp);
 
 export default app;
