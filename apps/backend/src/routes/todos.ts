@@ -45,6 +45,11 @@ const ErrorSchema = z.object({
   error: z.string().openapi({ example: 'Not found' }),
 });
 
+// Define all routes first, then organize registration at the end
+// This ensures proper route priority
+
+// AUTHENTICATED ROUTES - Register these FIRST to main app to take precedence
+
 // List user's todos (authenticated)
 const listUserTodosRoute = createRoute({
   method: 'get',
@@ -73,6 +78,28 @@ const listUserTodosRoute = createRoute({
   },
 });
 
+// Register to MAIN app with auth middleware for route priority
+app.use('/api/todos/my-todos', jwtAuth);
+app.openapi(listUserTodosRoute, async (c) => {
+  const db = createDbClient(c.env.DB);
+  const logger = createLogger(c);
+  const userId = c.get('userId') as string;
+
+  logger.info('Fetching user todos', { userId });
+
+  const userTodos = await db
+    .select()
+    .from(todos)
+    .where(eq(todos.userId, userId))
+    .all();
+
+  return c.json({
+    todos: userTodos,
+    total: userTodos.length,
+  });
+});
+
+// Also register to authenticatedApp for API docs consistency
 authenticatedApp.openapi(listUserTodosRoute, async (c) => {
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
@@ -210,6 +237,36 @@ const createUserTodoRoute = createRoute({
   },
 });
 
+// Register to main app with auth
+app.openapi(createUserTodoRoute, async (c) => {
+  const data = c.req.valid('json');
+  const db = createDbClient(c.env.DB);
+  const logger = createLogger(c);
+  const userId = c.get('userId') as string;
+
+  logger.info('Creating todo for user', { userId, task: data.task });
+
+  const result = await db
+    .insert(todos)
+    .values({
+      ...data,
+      userId,
+    })
+    .returning();
+
+  const newTodo = result[0];
+
+  return c.json(
+    {
+      success: true,
+      id: newTodo.id,
+      todo: newTodo,
+    },
+    201
+  );
+});
+
+// Also register to authenticatedApp for API docs
 authenticatedApp.openapi(createUserTodoRoute, async (c) => {
   const data = c.req.valid('json');
   const db = createDbClient(c.env.DB);
@@ -344,6 +401,43 @@ const updateUserTodoRoute = createRoute({
   },
 });
 
+// Register to main app with auth
+app.use('/api/todos/my-todos/:id', jwtAuth);
+app.openapi(updateUserTodoRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const data = c.req.valid('json');
+  const db = createDbClient(c.env.DB);
+  const logger = createLogger(c);
+  const userId = c.get('userId') as string;
+
+  // Check if todo exists and belongs to user
+  const existing = await db
+    .select()
+    .from(todos)
+    .where(eq(todos.id, id))
+    .get();
+
+  if (!existing) {
+    return c.json({ error: 'Todo not found' }, 404);
+  }
+
+  if (existing.userId !== userId) {
+    return c.json({ error: 'Unauthorized' }, 403);
+  }
+
+  logger.info('Updating user todo', { userId, todoId: id });
+
+  // Update the todo
+  const result = await db
+    .update(todos)
+    .set({ ...data, updatedAt: new Date().toISOString() })
+    .where(eq(todos.id, id))
+    .returning();
+
+  return c.json(result[0]);
+});
+
+// Also register to authenticatedApp for API docs
 authenticatedApp.openapi(updateUserTodoRoute, async (c) => {
   const { id } = c.req.valid('param');
   const data = c.req.valid('json');
@@ -481,6 +575,34 @@ const deleteUserTodoRoute = createRoute({
   },
 });
 
+// Register to main app with auth
+app.openapi(deleteUserTodoRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const db = createDbClient(c.env.DB);
+  const logger = createLogger(c);
+  const userId = c.get('userId') as string;
+
+  // Check if todo exists and belongs to user
+  const existing = await db.select().from(todos).where(eq(todos.id, id)).get();
+  if (!existing) {
+    return c.json({ error: 'Todo not found' }, 404);
+  }
+
+  if (existing.userId !== userId) {
+    return c.json({ error: 'Unauthorized' }, 403);
+  }
+
+  logger.info('Deleting user todo', { userId, todoId: id });
+
+  await db.delete(todos).where(eq(todos.id, id));
+
+  return c.json({
+    success: true,
+    message: 'Todo deleted successfully',
+  });
+});
+
+// Also register to authenticatedApp for API docs
 authenticatedApp.openapi(deleteUserTodoRoute, async (c) => {
   const { id } = c.req.valid('param');
   const db = createDbClient(c.env.DB);
