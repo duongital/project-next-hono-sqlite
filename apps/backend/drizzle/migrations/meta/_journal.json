@@ -43,6 +43,13 @@
       "when": 1760962349846,
       "tag": "0005_crazy_crystal",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1761006711099,
+      "tag": "0006_lonely_the_santerians",
+      "breakpoints": true
     }
   ]
 }

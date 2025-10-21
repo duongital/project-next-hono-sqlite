@@ -1,8 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
-import { createDbClient } from '../db/client';
+import type { DbClient } from '../db/client';
 import { otp, users } from '../db/schema';
 import { eq } from 'drizzle-orm';
-import type { D1Database } from '@cloudflare/workers-types';
 
 // Generate a 6-digit OTP
 export function generateOTP(): string {
@@ -20,7 +19,7 @@ export function generateUUID(): string {
 
 // Create OTP record in database
 export async function createOTP(
-  db: D1Database,
+  db: DbClient,
   email: string,
   userId?: string
 ): Promise<string> {
@@ -50,7 +49,7 @@ export async function createOTP(
 
 // Verify OTP
 export async function verifyOTP(
-  db: D1Database,
+  db: DbClient,
   email: string,
   code: string
 ): Promise<{ success: boolean; userId?: string; error?: string }> {
@@ -132,7 +131,7 @@ export async function verifyJWT(
 
 // Get or create user by email
 export async function getOrCreateUser(
-  db: D1Database,
+  db: DbClient,
   email: string,
   name?: string
 ): Promise<string> {
@@ -166,7 +165,7 @@ export async function getOrCreateUser(
 
 // Mark email as verified
 export async function markEmailAsVerified(
-  db: D1Database,
+  db: DbClient,
   userId: string
 ): Promise<void> {
   await db
