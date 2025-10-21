@@ -81,6 +81,7 @@ export type NewTodo = typeof todos.$inferInsert;
 // Images table
 export const images = sqliteTable('images', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('user_id'), // Foreign key to users table (nullable for backward compatibility with existing images)
   fileName: text('file_name').notNull(),
   fileSize: integer('file_size').notNull(), // in bytes
   mimeType: text('mime_type').notNull(),

@@ -5,8 +5,13 @@ import { createDbClient } from '../db/client';
 import { images } from '../db/schema';
 import { createLogger } from '../middleware/logging';
 import { createDbLogger } from '../utils/db-logger';
+import { jwtAuth } from '../middleware/auth';
 
 const app = new OpenAPIHono<{ Bindings: Bindings }>();
+
+// Create a separate app for authenticated routes
+const authenticatedApp = new OpenAPIHono<{ Bindings: Bindings; Variables: { userId: string } }>();
+authenticatedApp.use('*', jwtAuth);
 
 // Schemas
 const IdParamSchema = z.object({
@@ -64,12 +69,54 @@ const ErrorSchema = z.object({
   error: z.string().openapi({ example: 'Not found' }),
 });
 
-// List all images
+// List current user's images (requires authentication)
+const listUserImagesRoute = createRoute({
+  method: 'get',
+  path: '/api/images/gallery',
+  tags: ['Images'],
+  summary: 'List current user\'s images (requires authentication)',
+  responses: {
+    200: {
+      description: 'List of user images',
+      content: {
+        'application/json': {
+          schema: ImagesListResponseSchema,
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+authenticatedApp.openapi(listUserImagesRoute, async (c) => {
+  const db = createDbClient(c.env.DB);
+  const logger = createLogger(c);
+  const userId = c.get('userId');
+
+  logger.info('Fetching user gallery', { userId });
+
+  const userImages = await db
+    .select()
+    .from(images)
+    .where(eq(images.userId, userId))
+    .orderBy(images.createdAt);
+
+  return c.json({ images: userImages }, 200);
+});
+
+// List all images (legacy endpoint - kept for backward compatibility)
 const listImagesRoute = createRoute({
   method: 'get',
   path: '/api/images',
   tags: ['Images'],
-  summary: 'List all images',
+  summary: 'List all images (legacy - use /api/images/gallery for authenticated user images)',
   responses: {
     200: {
       description: 'List of images',
@@ -92,12 +139,12 @@ app.openapi(listImagesRoute, async (c) => {
   return c.json({ images: allImages }, 200);
 });
 
-// Create image metadata and get upload URL
+// Create image metadata and get upload URL (authenticated - for user's gallery)
 const createImageRoute = createRoute({
   method: 'post',
-  path: '/api/images',
+  path: '/api/images/gallery',
   tags: ['Images'],
-  summary: 'Create image metadata and get upload URL',
+  summary: 'Create image metadata and get upload URL (authenticated user only)',
   request: {
     body: {
       content: {
@@ -116,35 +163,45 @@ const createImageRoute = createRoute({
         },
       },
     },
+    401: {
+      description: 'Unauthorized',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
   },
 });
 
-app.openapi(createImageRoute, async (c) => {
+authenticatedApp.openapi(createImageRoute, async (c) => {
   const body = c.req.valid('json');
   const db = createDbClient(c.env.DB);
   const logger = createLogger(c);
   const dbLogger = createDbLogger(logger);
+  const userId = c.get('userId');
 
-  logger.info('Creating image metadata', {
+  logger.info('Creating image metadata for user', {
+    userId,
     fileName: body.fileName,
     fileSize: body.fileSize,
     mimeType: body.mimeType,
   });
 
-  // Generate unique R2 key (without userId prefix)
+  // Generate unique R2 key with userId prefix for organization
   const timestamp = Date.now();
   const randomStr = Math.random().toString(36).substring(7);
-  const r2Key = `${timestamp}-${randomStr}-${body.fileName}`;
+  const r2Key = `${userId}/${timestamp}-${randomStr}-${body.fileName}`;
 
   // Construct public URL
   const url = `${c.env.R2_PUBLIC_URL}/${r2Key}`;
 
-  // Insert metadata into database (userId will be null)
+  // Insert metadata into database with userId
   const result = await dbLogger.logQuery('INSERT', 'images', async () =>
     db
       .insert(images)
       .values({
-        userId: null,
+        userId,
         fileName: body.fileName,
         fileSize: body.fileSize,
         mimeType: body.mimeType,
@@ -160,6 +217,7 @@ app.openapi(createImageRoute, async (c) => {
 
   logger.info('Image metadata created', {
     imageId: image.id,
+    userId,
     r2Key,
   });
 
@@ -352,5 +410,8 @@ app.openapi(deleteImageRoute, async (c) => {
     200
   );
 });
+
+// Merge authenticated routes into main app
+app.route('/', authenticatedApp);
 
 export default app;

@@ -1,24 +1,35 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { apiClient } from '../../lib/api-client';
+import { useRouter } from 'next/navigation';
+import { apiClient, tokenManager } from '../../lib/api-client';
 import type { Image } from '@shared/types';
 
 export default function Gallery() {
   const [images, setImages] = useState<Image[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
-  const fetchImages = async () => {
+  const fetchUserGallery = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiClient.getImages();
+      const response = await apiClient.getUserGallery();
       setImages(response.images);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch images');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch images';
+      if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+        setError('Please log in to view your gallery');
+        tokenManager.removeToken();
+        setIsAuthenticated(false);
+        router.push('/login');
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -50,8 +61,8 @@ export default function Gallery() {
       // Get image dimensions
       const dimensions = await getImageDimensions(file);
 
-      // Step 1: Create image metadata
-      const createResponse = await apiClient.createImage({
+      // Step 1: Create image metadata (authenticated gallery endpoint)
+      const createResponse = await apiClient.createGalleryImage({
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type,
@@ -63,14 +74,21 @@ export default function Gallery() {
       await apiClient.uploadImage(createResponse.image.id, file);
 
       // Refresh the gallery
-      fetchImages();
+      await fetchUserGallery();
 
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload image');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to upload image';
+      if (errorMsg.includes('401')) {
+        setError('Your session has expired. Please log in again.');
+        tokenManager.removeToken();
+        router.push('/login');
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setUploading(false);
     }
@@ -94,15 +112,33 @@ export default function Gallery() {
     try {
       setError(null);
       await apiClient.deleteImage(id);
-      fetchImages();
+      await fetchUserGallery();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete image');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to delete image';
+      if (errorMsg.includes('401')) {
+        setError('Your session has expired. Please log in again.');
+        tokenManager.removeToken();
+        router.push('/login');
+      } else {
+        setError(errorMsg);
+      }
     }
   };
 
   useEffect(() => {
-    fetchImages();
-  }, []);
+    // Check if user is authenticated
+    const token = tokenManager.getToken();
+    if (!token) {
+      setError('Please log in to view your gallery');
+      setIsAuthenticated(false);
+      setLoading(false);
+      router.push('/login');
+      return;
+    }
+
+    setIsAuthenticated(true);
+    fetchUserGallery();
+  }, [router]);
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-12">

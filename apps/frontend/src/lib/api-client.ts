@@ -61,6 +61,12 @@ export class ApiClient {
       'Content-Type': 'application/json',
     };
 
+    // Add authorization header if token exists
+    const token = tokenManager.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     // Merge existing headers
     if (options?.headers) {
       const existingHeaders = new Headers(options.headers);
@@ -184,11 +190,27 @@ export class ApiClient {
     );
   }
 
-  // Images API methods
+  // Images API methods - Legacy (all images)
   async getImages(): Promise<GetImagesResponse> {
     return this.request<GetImagesResponse>('/api/images');
   }
 
+  // Gallery API methods - Authenticated user only
+  async getUserGallery(): Promise<GetImagesResponse> {
+    return this.request<GetImagesResponse>('/api/images/gallery');
+  }
+
+  async createGalleryImage(data: CreateImageRequest): Promise<CreateImageResponse> {
+    return this.request<CreateImageResponse>(
+      '/api/images/gallery',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  // Legacy create image method
   async createImage(data: CreateImageRequest): Promise<CreateImageResponse> {
     return this.request<CreateImageResponse>(
       '/api/images',
@@ -202,11 +224,19 @@ export class ApiClient {
   async uploadImage(imageId: number, file: File): Promise<ImageUploadResponse> {
     const arrayBuffer = await file.arrayBuffer();
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/octet-stream',
+    };
+
+    // Add authorization header if token exists
+    const token = tokenManager.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${this.baseUrl}/api/images/${imageId}/upload`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-      },
+      headers,
       body: arrayBuffer,
     });
 

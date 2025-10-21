@@ -149,6 +149,7 @@ export interface DeleteTodoResponse {
 // Image Types
 export interface Image {
   id: number;
+  userId: string | null;
   fileName: string;
   fileSize: number;
   mimeType: string;
