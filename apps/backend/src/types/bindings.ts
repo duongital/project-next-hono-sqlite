@@ -7,4 +7,7 @@ export type Bindings = {
   // R2 Storage
   IMAGES_BUCKET: R2Bucket;
   R2_PUBLIC_URL: string; // e.g., https://pub-xxxxx.r2.dev
+
+  // Resend Email
+  RESEND_API_KEY: string; // API key for Resend email service
 };

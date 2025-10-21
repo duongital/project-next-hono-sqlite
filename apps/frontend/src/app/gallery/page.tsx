@@ -21,7 +21,8 @@ export default function Gallery() {
       const response = await apiClient.getUserGallery();
       setImages(response.images);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch images';
+      const errorMsg =
+        err instanceof Error ? err.message : 'Failed to fetch images';
       if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
         setError('Please log in to view your gallery');
         tokenManager.removeToken();
@@ -81,7 +82,8 @@ export default function Gallery() {
         fileInputRef.current.value = '';
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to upload image';
+      const errorMsg =
+        err instanceof Error ? err.message : 'Failed to upload image';
       if (errorMsg.includes('401')) {
         setError('Your session has expired. Please log in again.');
         tokenManager.removeToken();
@@ -114,7 +116,8 @@ export default function Gallery() {
       await apiClient.deleteImage(id);
       await fetchUserGallery();
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to delete image';
+      const errorMsg =
+        err instanceof Error ? err.message : 'Failed to delete image';
       if (errorMsg.includes('401')) {
         setError('Your session has expired. Please log in again.');
         tokenManager.removeToken();
@@ -184,13 +187,15 @@ export default function Gallery() {
             <div className="aspect-square max-w-md mx-auto bg-slate-100 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center mb-4">
               <p className="text-slate-400">No images yet</p>
             </div>
-            <p className="text-slate-600">Upload your first image to get started!</p>
+            <p className="text-slate-600">
+              Upload your first image to get started!
+            </p>
           </div>
         )}
 
         {/* Images Grid */}
         {images.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             {images.map((image) => (
               <div
                 key={image.id}
@@ -213,7 +218,9 @@ export default function Gallery() {
                   <p className="font-medium truncate">{image.fileName}</p>
                   <p className="text-xs text-slate-300">
                     {(image.fileSize / 1024).toFixed(1)} KB
-                    {image.width && image.height && ` • ${image.width}×${image.height}`}
+                    {image.width &&
+                      image.height &&
+                      ` • ${image.width}×${image.height}`}
                   </p>
                 </div>
               </div>
@@ -224,7 +231,8 @@ export default function Gallery() {
         {/* Image Count */}
         {images.length > 0 && (
           <div className="mt-6 text-sm text-slate-600 text-center">
-            {images.length} {images.length === 1 ? 'image' : 'images'} in your gallery
+            {images.length} {images.length === 1 ? 'image' : 'images'} in your
+            gallery
           </div>
         )}
       </div>

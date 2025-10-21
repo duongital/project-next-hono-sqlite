@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import type { DbClient } from '../db/client';
 import { otp, users } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import { sendOTPEmail } from './email';
 
 // Generate a 6-digit OTP
 export function generateOTP(): string {
@@ -13,11 +14,13 @@ export function generateUUID(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
-// Create OTP record in database
+// Create OTP record in database and send via email
 export async function createOTP(
   db: DbClient,
   email: string,
-  userId?: string
+  resendApiKey: string,
+  userId?: string,
+  origin?: string
 ): Promise<string> {
   const otpCode = generateOTP();
   const otpId = generateUUID();
@@ -37,8 +40,28 @@ export async function createOTP(
     })
     .run();
 
-  // TODO: Send OTP via email using Mailchannels (for now, log to console)
-  console.log(`[OTP] Email: ${email}, Code: ${otpCode}`);
+  // Check if running on localhost for development
+  const isLocalhost = origin?.includes('localhost') || origin?.includes('127.0.0.1');
+
+  if (isLocalhost) {
+    // Development: log OTP to console instead of sending email
+    console.log(`[OTP] Development Mode - Email: ${email}, Code: ${otpCode}`);
+  } else {
+    // Production: send OTP via email using Resend service
+    try {
+      await sendOTPEmail({
+        to: email,
+        otpCode,
+        resendApiKey,
+      });
+      console.log(`[OTP] Email sent successfully to: ${email}`);
+    } catch (error) {
+      console.error(`[OTP] Failed to send email to ${email}:`, error);
+      // Log to console as fallback
+      console.log(`[OTP] Fallback - Email: ${email}, Code: ${otpCode}`);
+      // Don't throw - allow OTP to be created even if email fails
+    }
+  }
 
   return otpCode;
 }
@@ -80,11 +103,7 @@ export async function verifyOTP(
   }
 
   // Mark OTP as used
-  await db
-    .update(otp)
-    .set({ isUsed: true })
-    .where(eq(otp.id, record.id))
-    .run();
+  await db.update(otp).set({ isUsed: true }).where(eq(otp.id, record.id)).run();
 
   return { success: true, userId: record.userId || undefined };
 }
@@ -109,10 +128,7 @@ export async function verifyJWT(
   secret: string
 ): Promise<{ userId: string | null; error?: string }> {
   try {
-    const verified = await jwtVerify(
-      token,
-      new TextEncoder().encode(secret)
-    );
+    const verified = await jwtVerify(token, new TextEncoder().encode(secret));
 
     const userId = verified.payload.sub;
     if (!userId) {

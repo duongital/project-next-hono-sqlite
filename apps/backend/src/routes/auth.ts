@@ -77,8 +77,11 @@ app.openapi(sendOTPRoute, async (c) => {
     const { email } = c.req.valid('json');
     const db = createDbClient(c.env.DB);
 
-    // Create OTP
-    await createOTP(db, email);
+    // Get origin for localhost detection
+    const origin = c.req.header('origin') || c.req.header('host') || '';
+
+    // Create OTP and send via email
+    await createOTP(db, email, c.env.RESEND_API_KEY, undefined, origin);
 
     return c.json({
       success: true,
@@ -179,7 +182,7 @@ app.openapi(verifyOTPRoute, async (c) => {
         emailVerified: user.emailVerified,
         name: user.name,
       },
-    });
+    }, 200);
   } catch (error) {
     console.error('Verify OTP error:', error);
     return c.json(
