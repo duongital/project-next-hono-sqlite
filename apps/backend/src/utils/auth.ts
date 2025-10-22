@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import type { DbClient } from '../db/client';
 import { otp, users } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { sendOTPEmail } from './email';
 
 // Generate a 6-digit OTP
@@ -79,7 +79,7 @@ export async function verifyOTP(
     .select()
     .from(otp)
     .where(eq(otp.email, email))
-    .orderBy(otp.createdAt)
+    .orderBy(desc(otp.createdAt))
     .limit(1)
     .all();
 
@@ -87,7 +87,7 @@ export async function verifyOTP(
     return { success: false, error: 'OTP not found' };
   }
 
-  const record = otpRecord[otpRecord.length - 1]; // Get the latest OTP
+  const record = otpRecord[0]; // Get the latest OTP (already ordered by desc createdAt)
 
   // Check if OTP is valid
   if (record.code !== code) {
