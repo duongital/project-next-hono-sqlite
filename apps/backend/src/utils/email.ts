@@ -23,7 +23,7 @@ export async function sendOTPEmail({
     const { data, error } = await resend.emails.send({
       from: 'OTP Verification <noreply@duongital.com>', // Change this to your verified domain
       to: [to],
-      subject: 'Your OTP Code from duongital.com',
+      subject: `Your OTP Code is ${otpCode}`,
       html: `
         <!DOCTYPE html>
         <html>

@@ -8,9 +8,24 @@ export function Header() {
 
   return (
     <header className="w-full flex justify-between items-center px-6 py-4 bg-white/80 backdrop-blur-sm shadow-sm border-b border-slate-200">
-      <div className="flex items-center gap-2">
+      <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 32 32"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="flex-shrink-0"
+        >
+          <circle cx="16" cy="16" r="14" fill="#3b82f6" opacity="0.2" />
+          <path
+            d="M16 4L20.472 12.528L30 14.472L23 21.056L24.944 30L16 25.528L7.056 30L9 21.056L2 14.472L11.528 12.528L16 4Z"
+            fill="#3b82f6"
+          />
+          <circle cx="16" cy="16" r="4" fill="#1e40af" />
+        </svg>
         <h1 className="text-xl font-semibold text-slate-800">Your App</h1>
-      </div>
+      </Link>
       <nav className="flex items-center gap-4">
         {isAuthenticated ? (
           <>
